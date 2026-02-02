@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
@@ -28,6 +29,7 @@ import { OAuthModule } from './oauth/oauth.module';
       }),
       inject: [ConfigService],
     }),
+    CommonModule,
     OAuthModule,
     AuthModule,
     UsersModule,

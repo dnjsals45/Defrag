@@ -5,6 +5,7 @@ import { WorkspaceIntegration } from '../database/entities/workspace-integration
 import { Provider } from '../database/entities/user-connection.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { MemberRole } from '../database/entities/workspace-member.entity';
+import { CryptoService } from '../common/services/crypto.service';
 
 @Injectable()
 export class IntegrationsService {
@@ -12,6 +13,7 @@ export class IntegrationsService {
     @InjectRepository(WorkspaceIntegration)
     private readonly integrationsRepository: Repository<WorkspaceIntegration>,
     private readonly workspacesService: WorkspacesService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   async findAllByWorkspace(workspaceId: string, userId: string) {
@@ -46,12 +48,21 @@ export class IntegrationsService {
   ): Promise<WorkspaceIntegration> {
     await this.checkAdminAccess(workspaceId, userId);
 
+    // Encrypt tokens before storing
+    const encryptedData = {
+      ...data,
+      accessToken: this.cryptoService.encrypt(data.accessToken),
+      refreshToken: data.refreshToken
+        ? this.cryptoService.encrypt(data.refreshToken)
+        : undefined,
+    };
+
     const existing = await this.integrationsRepository.findOne({
       where: { workspaceId, provider },
     });
 
     if (existing) {
-      Object.assign(existing, data);
+      Object.assign(existing, encryptedData);
       return this.integrationsRepository.save(existing);
     }
 
@@ -59,9 +70,37 @@ export class IntegrationsService {
       workspaceId,
       provider,
       connectedBy: userId,
-      ...data,
+      ...encryptedData,
     });
     return this.integrationsRepository.save(integration);
+  }
+
+  /**
+   * Get decrypted access token for an integration
+   */
+  async getDecryptedAccessToken(
+    workspaceId: string,
+    provider: Provider,
+  ): Promise<string | null> {
+    const integration = await this.integrationsRepository.findOne({
+      where: { workspaceId, provider },
+    });
+    if (!integration) return null;
+    return this.cryptoService.safeDecrypt(integration.accessToken);
+  }
+
+  /**
+   * Get decrypted refresh token for an integration
+   */
+  async getDecryptedRefreshToken(
+    workspaceId: string,
+    provider: Provider,
+  ): Promise<string | null> {
+    const integration = await this.integrationsRepository.findOne({
+      where: { workspaceId, provider },
+    });
+    if (!integration?.refreshToken) return null;
+    return this.cryptoService.safeDecrypt(integration.refreshToken);
   }
 
   async updateConfig(
