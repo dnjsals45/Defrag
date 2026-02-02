@@ -24,6 +24,21 @@ export class User {
   @Column({ type: 'varchar', length: 100 })
   nickname: string;
 
+  @Column({ type: 'boolean', default: false, name: 'is_email_verified' })
+  isEmailVerified: boolean;
+
+  @Column({ type: 'varchar', length: 255, nullable: true, name: 'email_verification_token' })
+  emailVerificationToken: string | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'email_verification_expiry' })
+  emailVerificationExpiry: Date | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true, name: 'password_reset_token' })
+  passwordResetToken: string | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'password_reset_expiry' })
+  passwordResetExpiry: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
