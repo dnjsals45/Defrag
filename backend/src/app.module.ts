@@ -9,6 +9,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { ItemsModule } from './items/items.module';
 import { SearchModule } from './search/search.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { OAuthModule } from './oauth/oauth.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
       }),
       inject: [ConfigService],
     }),
+    OAuthModule,
     AuthModule,
     UsersModule,
     WorkspacesModule,
