@@ -56,6 +56,16 @@ export const authApi = {
   login: (data: { email: string; password: string }) =>
     api.post('/auth/login', data),
   me: () => api.get('/auth/me'),
+  verifyEmail: (token: string) =>
+    api.get(`/auth/verify-email?token=${token}`),
+  resendVerification: (email: string) =>
+    api.post('/auth/resend-verification', { email }),
+  forgotPassword: (email: string) =>
+    api.post('/auth/forgot-password', { email }),
+  verifyResetToken: (token: string) =>
+    api.get('/auth/verify-reset-token', { params: { token } }),
+  resetPassword: (token: string, password: string) =>
+    api.post('/auth/reset-password', { token, password }),
 };
 
 // Workspace API

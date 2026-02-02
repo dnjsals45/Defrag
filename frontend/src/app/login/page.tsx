@@ -67,13 +67,20 @@ export default function LoginPage() {
               {...register('email')}
             />
 
-            <Input
-              label="비밀번호"
-              type="password"
-              placeholder="••••••••"
-              error={errors.password?.message}
-              {...register('password')}
-            />
+            <div>
+              <Input
+                label="비밀번호"
+                type="password"
+                placeholder="••••••••"
+                error={errors.password?.message}
+                {...register('password')}
+              />
+              <div className="mt-2 text-right">
+                <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+                  비밀번호를 잊으셨나요?
+                </Link>
+              </div>
+            </div>
 
             <Button type="submit" isLoading={isLoading} className="w-full">
               로그인
