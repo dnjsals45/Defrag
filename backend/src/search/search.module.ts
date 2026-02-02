@@ -5,11 +5,13 @@ import { VectorData } from '../database/entities/vector-data.entity';
 import { SearchService } from './search.service';
 import { SearchController } from './search.controller';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
+import { EmbeddingModule } from '../embedding/embedding.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ContextItem, VectorData]),
     WorkspacesModule,
+    EmbeddingModule,
   ],
   controllers: [SearchController],
   providers: [SearchService],

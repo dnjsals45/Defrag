@@ -1,21 +1,25 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ContextItem, SourceType } from '../database/entities/context-item.entity';
 import { VectorData } from '../database/entities/vector-data.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { EmbeddingService } from '../embedding/embedding.service';
 import { SearchDto } from './dto/search.dto';
 import { AskDto } from './dto/ask.dto';
 
 @Injectable()
 export class SearchService {
+  private readonly logger = new Logger(SearchService.name);
+
   constructor(
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
     @InjectRepository(VectorData)
     private readonly vectorRepository: Repository<VectorData>,
     private readonly workspacesService: WorkspacesService,
+    private readonly embeddingService: EmbeddingService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
   ) {}
@@ -25,10 +29,43 @@ export class SearchService {
 
     const { query, sources, limit = 10 } = dto;
 
-    // TODO: Generate embedding for query using OpenAI
-    // const embedding = await this.generateEmbedding(query);
+    // Try semantic search first using embeddings
+    try {
+      this.logger.debug(`Generating embedding for query: "${query}"`);
+      const queryEmbedding = await this.embeddingService.generateEmbedding(query);
 
-    // For now, use simple text search
+      this.logger.debug('Performing vector search');
+      const vectorResults = await this.vectorSearch(workspaceId, queryEmbedding, limit);
+
+      // Filter by sources if specified
+      let filteredResults = vectorResults;
+      if (sources && sources.length > 0) {
+        filteredResults = vectorResults.filter((item: any) =>
+          sources.includes(item.source_type)
+        );
+      }
+
+      // If vector search returned results, use them
+      if (filteredResults.length > 0) {
+        this.logger.debug(`Vector search returned ${filteredResults.length} results`);
+        return {
+          results: filteredResults.map((item: any) => ({
+            id: item.id,
+            title: item.title,
+            snippet: this.extractSnippet(item.content, query),
+            sourceType: item.source_type,
+            sourceUrl: item.source_url,
+            score: 1 - item.distance, // Convert distance to similarity score
+          })),
+        };
+      }
+
+      this.logger.debug('No results from vector search, falling back to text search');
+    } catch (error) {
+      this.logger.warn(`Embedding generation or vector search failed: ${error.message}. Falling back to text search.`);
+    }
+
+    // Fallback to text search if vector search returns no results or fails
     const queryBuilder = this.itemsRepository
       .createQueryBuilder('item')
       .where('item.workspace_id = :workspaceId', { workspaceId })
@@ -48,6 +85,7 @@ export class SearchService {
       .take(limit)
       .getMany();
 
+    this.logger.debug(`Text search returned ${items.length} results`);
     return {
       results: items.map((item, index) => ({
         id: item.id,
@@ -73,7 +111,7 @@ export class SearchService {
 
     // 2. Build context from search results
     const context = searchResults.results
-      .map((r) => `[${r.sourceType}] ${r.title}: ${r.snippet}`)
+      .map((r: any) => `[${r.sourceType}] ${r.title}: ${r.snippet}`)
       .join('\n\n');
 
     // 3. TODO: Call LLM with context and question
@@ -83,7 +121,7 @@ export class SearchService {
     return {
       answer,
       sources: includeContext
-        ? searchResults.results.map((r) => ({
+        ? searchResults.results.map((r: any) => ({
             id: r.id,
             title: r.title,
             sourceType: r.sourceType,
