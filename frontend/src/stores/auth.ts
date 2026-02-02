@@ -30,10 +30,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signup: async (email: string, password: string, nickname: string) => {
-    const { data } = await authApi.signup({ email, password, nickname });
-    localStorage.setItem('accessToken', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken);
-    set({ user: data.user, isAuthenticated: true });
+    await authApi.signup({ email, password, nickname });
+    // 이메일 인증이 필요하므로 자동 로그인하지 않음
   },
 
   logout: () => {

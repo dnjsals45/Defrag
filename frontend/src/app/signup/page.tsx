@@ -36,7 +36,7 @@ export default function SignupPage() {
     setError('');
     try {
       await signup(data.email, data.password, data.nickname);
-      router.push('/dashboard');
+      router.push('/signup/success');
     } catch (err: any) {
       setError(err.response?.data?.message || '회원가입에 실패했습니다');
     } finally {
