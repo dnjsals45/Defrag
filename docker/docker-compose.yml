@@ -19,6 +19,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - defrag-network
 
   redis:
     image: redis:7-alpine
@@ -33,6 +35,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - defrag-network
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: defrag-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - defrag-network
+
+networks:
+  defrag-network:
+    driver: bridge
 
 volumes:
   postgres_data:
