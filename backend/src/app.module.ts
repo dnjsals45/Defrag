@@ -15,6 +15,7 @@ import { OAuthModule } from './oauth/oauth.module';
 import { SyncModule } from './sync/sync.module';
 import { EmbeddingModule } from './embedding/embedding.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     SyncModule,
     EmbeddingModule,
     SchedulerModule,
+    EmailModule,
   ],
 })
 export class AppModule {}
