@@ -12,6 +12,7 @@ import {
 import { ItemsService } from './items.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CreateItemDto } from './dto/create-item.dto';
+import { TriggerSyncDto } from './dto/trigger-sync.dto';
 import { SourceType } from '../database/entities/context-item.entity';
 
 @Controller('workspaces/:workspaceId/items')
@@ -68,8 +69,21 @@ export class ItemsController {
   async triggerSync(
     @Request() req: any,
     @Param('workspaceId') workspaceId: string,
+    @Body() dto?: TriggerSyncDto,
   ) {
-    await this.itemsService.triggerSync(workspaceId, req.user.id);
-    return { success: true, message: 'Sync triggered' };
+    const result = await this.itemsService.triggerSync(workspaceId, req.user.id, {
+      providers: dto?.providers,
+      syncType: dto?.syncType,
+      since: dto?.since,
+    });
+    return { success: true, message: 'Sync triggered', ...result };
+  }
+
+  @Get('sync/status')
+  async getSyncStatus(
+    @Request() req: any,
+    @Param('workspaceId') workspaceId: string,
+  ) {
+    return this.itemsService.getSyncStatus(workspaceId, req.user.id);
   }
 }

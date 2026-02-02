@@ -1,10 +1,12 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ContextItem, SourceType } from '../database/entities/context-item.entity';
 import { VectorData } from '../database/entities/vector-data.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateItemDto } from './dto/create-item.dto';
+import { SyncService, SyncOptions, WorkspaceSyncStatus } from '../sync/sync.service';
+import { Provider } from '../database/entities/user-connection.entity';
 
 @Injectable()
 export class ItemsService {
@@ -14,6 +16,8 @@ export class ItemsService {
     @InjectRepository(VectorData)
     private readonly vectorRepository: Repository<VectorData>,
     private readonly workspacesService: WorkspacesService,
+    @Inject(forwardRef(() => SyncService))
+    private readonly syncService: SyncService,
   ) {}
 
   async findAll(
@@ -119,9 +123,18 @@ export class ItemsService {
     await this.itemsRepository.softDelete(itemId);
   }
 
-  async triggerSync(workspaceId: string, userId: string): Promise<void> {
+  async triggerSync(
+    workspaceId: string,
+    userId: string,
+    options?: SyncOptions,
+  ): Promise<{ jobIds: Record<Provider, string> }> {
     await this.checkAccess(workspaceId, userId);
-    // TODO: Queue sync job for all connected integrations
+    return this.syncService.triggerSync(workspaceId, userId, options);
+  }
+
+  async getSyncStatus(workspaceId: string, userId: string): Promise<WorkspaceSyncStatus> {
+    await this.checkAccess(workspaceId, userId);
+    return this.syncService.getSyncStatus(workspaceId);
   }
 
   private async checkAccess(workspaceId: string, userId: string) {
