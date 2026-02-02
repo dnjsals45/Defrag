@@ -1,0 +1,115 @@
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- 1. users
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    nickname VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- 2. workspace
+CREATE TABLE workspace (
+    id BIGSERIAL PRIMARY KEY,
+    owner_id BIGINT NOT NULL REFERENCES users(id),
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(20) NOT NULL DEFAULT 'personal',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- 3. workspace_member
+CREATE TABLE workspace_member (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    workspace_id BIGINT NOT NULL REFERENCES workspace(id),
+    role VARCHAR(20) NOT NULL DEFAULT 'MEMBER',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- 4. user_connection (개인 OAuth)
+CREATE TABLE user_connection (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    provider VARCHAR(50) NOT NULL,
+    provider_user_id VARCHAR(255) NOT NULL,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    token_expires_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    UNIQUE(user_id, provider)
+);
+
+-- 5. workspace_integration (팀 OAuth)
+CREATE TABLE workspace_integration (
+    id BIGSERIAL PRIMARY KEY,
+    workspace_id BIGINT NOT NULL REFERENCES workspace(id),
+    provider VARCHAR(50) NOT NULL,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    token_expires_at TIMESTAMP,
+    config JSONB,
+    connected_by BIGINT REFERENCES users(id),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    UNIQUE(workspace_id, provider)
+);
+
+-- 6. context_item
+CREATE TABLE context_item (
+    id BIGSERIAL PRIMARY KEY,
+    workspace_id BIGINT NOT NULL REFERENCES workspace(id),
+    author_id BIGINT REFERENCES users(id),
+    source_type VARCHAR(50) NOT NULL,
+    external_id VARCHAR(255),
+    title VARCHAR(500),
+    content TEXT NOT NULL,
+    metadata JSONB,
+    source_url TEXT,
+    importance_score DECIMAL(4, 2) NOT NULL DEFAULT 0.0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    UNIQUE(workspace_id, source_type, external_id)
+);
+
+-- 7. vector_data
+CREATE TABLE vector_data (
+    id BIGSERIAL PRIMARY KEY,
+    item_id BIGINT NOT NULL REFERENCES context_item(id) ON DELETE CASCADE,
+    embedding vector(1536) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- 8. item_relation
+CREATE TABLE item_relation (
+    id BIGSERIAL PRIMARY KEY,
+    source_id BIGINT NOT NULL REFERENCES context_item(id),
+    target_id BIGINT NOT NULL REFERENCES context_item(id),
+    relation_type VARCHAR(50) NOT NULL,
+    score DECIMAL(4, 2),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- Indexes
+CREATE INDEX idx_context_item_workspace ON context_item(workspace_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_context_item_source ON context_item(workspace_id, source_type) WHERE deleted_at IS NULL;
+CREATE INDEX idx_workspace_member_workspace ON workspace_member(workspace_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_workspace_member_user ON workspace_member(user_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_vector_embedding ON vector_data USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX idx_item_relation_source ON item_relation(source_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_item_relation_target ON item_relation(target_id) WHERE deleted_at IS NULL;
