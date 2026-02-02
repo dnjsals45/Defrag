@@ -20,6 +20,65 @@ interface GitHubUser {
   avatar_url: string;
 }
 
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  html_url: string;
+  description: string | null;
+  updated_at: string;
+  pushed_at: string;
+}
+
+export interface GitHubIssue {
+  id: number;
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  html_url: string;
+  user: { login: string; id: number };
+  labels: { name: string }[];
+  comments: number;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  pull_request?: { url: string };
+}
+
+export interface GitHubPullRequest {
+  id: number;
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  html_url: string;
+  user: { login: string; id: number };
+  labels: { name: string }[];
+  comments: number;
+  commits: number;
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  merged_at: string | null;
+  head: { ref: string };
+  base: { ref: string };
+}
+
+export interface GitHubCommit {
+  sha: string;
+  html_url: string;
+  commit: {
+    message: string;
+    author: { name: string; email: string; date: string };
+  };
+  author: { login: string; id: number } | null;
+}
+
 @Injectable()
 export class GitHubOAuthService {
   private readonly clientId: string;
@@ -94,5 +153,153 @@ export class GitHubOAuthService {
     );
 
     return response.data;
+  }
+
+  // Data fetching methods for sync
+
+  async getRepos(
+    accessToken: string,
+    options: { page?: number; perPage?: number } = {},
+  ): Promise<{
+    data: GitHubRepo[];
+    headers: { 'x-ratelimit-remaining'?: string; link?: string };
+  }> {
+    const { page = 1, perPage = 30 } = options;
+    const response = await firstValueFrom(
+      this.httpService.get<GitHubRepo[]>('https://api.github.com/user/repos', {
+        params: {
+          page,
+          per_page: perPage,
+          sort: 'updated',
+          direction: 'desc',
+        },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }),
+    );
+
+    return {
+      data: response.data,
+      headers: {
+        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
+        link: response.headers['link'],
+      },
+    };
+  }
+
+  async getIssues(
+    accessToken: string,
+    repo: string,
+    options: { page?: number; perPage?: number; state?: string; since?: string } = {},
+  ): Promise<{
+    data: GitHubIssue[];
+    headers: { 'x-ratelimit-remaining'?: string; link?: string };
+  }> {
+    const { page = 1, perPage = 30, state = 'all', since } = options;
+    const params: Record<string, any> = {
+      page,
+      per_page: perPage,
+      state,
+      sort: 'updated',
+      direction: 'desc',
+    };
+    if (since) params.since = since;
+
+    const response = await firstValueFrom(
+      this.httpService.get<GitHubIssue[]>(
+        `https://api.github.com/repos/${repo}/issues`,
+        {
+          params,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      ),
+    );
+
+    return {
+      data: response.data,
+      headers: {
+        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
+        link: response.headers['link'],
+      },
+    };
+  }
+
+  async getPullRequests(
+    accessToken: string,
+    repo: string,
+    options: { page?: number; perPage?: number; state?: string } = {},
+  ): Promise<{
+    data: GitHubPullRequest[];
+    headers: { 'x-ratelimit-remaining'?: string; link?: string };
+  }> {
+    const { page = 1, perPage = 30, state = 'all' } = options;
+    const response = await firstValueFrom(
+      this.httpService.get<GitHubPullRequest[]>(
+        `https://api.github.com/repos/${repo}/pulls`,
+        {
+          params: {
+            page,
+            per_page: perPage,
+            state,
+            sort: 'updated',
+            direction: 'desc',
+          },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      ),
+    );
+
+    return {
+      data: response.data,
+      headers: {
+        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
+        link: response.headers['link'],
+      },
+    };
+  }
+
+  async getCommits(
+    accessToken: string,
+    repo: string,
+    options: { page?: number; perPage?: number; since?: string } = {},
+  ): Promise<{
+    data: GitHubCommit[];
+    headers: { 'x-ratelimit-remaining'?: string; link?: string };
+  }> {
+    const { page = 1, perPage = 30, since } = options;
+    const params: Record<string, any> = {
+      page,
+      per_page: perPage,
+    };
+    if (since) params.since = since;
+
+    const response = await firstValueFrom(
+      this.httpService.get<GitHubCommit[]>(
+        `https://api.github.com/repos/${repo}/commits`,
+        {
+          params,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      ),
+    );
+
+    return {
+      data: response.data,
+      headers: {
+        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
+        link: response.headers['link'],
+      },
+    };
   }
 }

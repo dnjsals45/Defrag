@@ -33,6 +33,28 @@ interface SlackUser {
   };
 }
 
+export interface SlackChannel {
+  id: string;
+  name: string;
+  is_member: boolean;
+  is_private: boolean;
+  topic?: { value: string };
+  purpose?: { value: string };
+}
+
+export interface SlackMessage {
+  type: string;
+  ts: string;
+  user?: string;
+  text: string;
+  thread_ts?: string;
+  reply_count?: number;
+  reply_users_count?: number;
+  reactions?: { name: string; count: number }[];
+  attachments?: { text?: string; fallback?: string }[];
+  files?: { name: string; url_private?: string }[];
+}
+
 @Injectable()
 export class SlackOAuthService {
   private readonly clientId: string;
@@ -106,11 +128,11 @@ export class SlackOAuthService {
     return response.data;
   }
 
-  async getChannels(accessToken: string): Promise<{ id: string; name: string }[]> {
+  async getChannels(accessToken: string): Promise<SlackChannel[]> {
     const response = await firstValueFrom(
       this.httpService.get<{
         ok: boolean;
-        channels: { id: string; name: string; is_member: boolean }[];
+        channels: SlackChannel[];
       }>('https://slack.com/api/conversations.list', {
         params: {
           types: 'public_channel,private_channel',
@@ -123,5 +145,100 @@ export class SlackOAuthService {
     );
 
     return response.data.channels || [];
+  }
+
+  // Data fetching methods for sync
+
+  async getChannelHistory(
+    accessToken: string,
+    channelId: string,
+    options: { limit?: number; oldest?: string; latest?: string; cursor?: string } = {},
+  ): Promise<{
+    messages: SlackMessage[];
+    hasMore: boolean;
+    nextCursor?: string;
+    retryAfter?: number;
+  }> {
+    const { limit = 100, oldest, latest, cursor } = options;
+    const params: Record<string, any> = {
+      channel: channelId,
+      limit,
+    };
+    if (oldest) params.oldest = oldest;
+    if (latest) params.latest = latest;
+    if (cursor) params.cursor = cursor;
+
+    const response = await firstValueFrom(
+      this.httpService.get<{
+        ok: boolean;
+        messages: SlackMessage[];
+        has_more: boolean;
+        response_metadata?: { next_cursor: string };
+        error?: string;
+      }>('https://slack.com/api/conversations.history', {
+        params,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }),
+    );
+
+    if (!response.data.ok) {
+      if (response.data.error === 'ratelimited') {
+        const retryAfter = parseInt(response.headers['retry-after'] || '60', 10);
+        return { messages: [], hasMore: false, retryAfter };
+      }
+      throw new Error(`Slack API error: ${response.data.error}`);
+    }
+
+    return {
+      messages: response.data.messages || [],
+      hasMore: response.data.has_more || false,
+      nextCursor: response.data.response_metadata?.next_cursor,
+    };
+  }
+
+  async getThreadReplies(
+    accessToken: string,
+    channelId: string,
+    threadTs: string,
+    options: { limit?: number; cursor?: string } = {},
+  ): Promise<{
+    messages: SlackMessage[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
+    const { limit = 100, cursor } = options;
+    const params: Record<string, any> = {
+      channel: channelId,
+      ts: threadTs,
+      limit,
+    };
+    if (cursor) params.cursor = cursor;
+
+    const response = await firstValueFrom(
+      this.httpService.get<{
+        ok: boolean;
+        messages: SlackMessage[];
+        has_more: boolean;
+        response_metadata?: { next_cursor: string };
+        error?: string;
+      }>('https://slack.com/api/conversations.replies', {
+        params,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }),
+    );
+
+    if (!response.data.ok) {
+      throw new Error(`Slack API error: ${response.data.error}`);
+    }
+
+    return {
+      messages: response.data.messages || [],
+      hasMore: response.data.has_more || false,
+      nextCursor: response.data.response_metadata?.next_cursor,
+    };
   }
 }
