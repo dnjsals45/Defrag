@@ -6,6 +6,7 @@ import { ContextItem, SourceType } from '../database/entities/context-item.entit
 import { VectorData } from '../database/entities/vector-data.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { EmbeddingService } from '../embedding/embedding.service';
+import { LLMService } from '../llm/llm.service';
 import { SearchDto } from './dto/search.dto';
 import { AskDto } from './dto/ask.dto';
 
@@ -20,6 +21,7 @@ export class SearchService {
     private readonly vectorRepository: Repository<VectorData>,
     private readonly workspacesService: WorkspacesService,
     private readonly embeddingService: EmbeddingService,
+    private readonly llmService: LLMService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
   ) {}
@@ -111,12 +113,18 @@ export class SearchService {
 
     // 2. Build context from search results
     const context = searchResults.results
-      .map((r: any) => `[${r.sourceType}] ${r.title}: ${r.snippet}`)
-      .join('\n\n');
+      .map((r: any) => `[${r.sourceType}] ${r.title}:\n${r.snippet}`)
+      .join('\n\n---\n\n');
 
-    // 3. TODO: Call LLM with context and question
-    // For now, return placeholder
-    const answer = `Based on ${searchResults.results.length} relevant documents found in your workspace, here's what I found about "${question}":\n\n${context ? 'Context available. LLM integration pending.' : 'No relevant context found.'}`;
+    // 3. Generate AI answer using LLM
+    let answer: string;
+    try {
+      this.logger.debug(`Generating AI answer for question: "${question}"`);
+      answer = await this.llmService.generateAnswer(question, context);
+    } catch (error) {
+      this.logger.error(`LLM generation failed: ${error.message}`);
+      answer = `죄송합니다. 답변 생성 중 오류가 발생했습니다. 관련 문서 ${searchResults.results.length}개를 찾았습니다.`;
+    }
 
     return {
       answer,
