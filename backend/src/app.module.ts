@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -11,6 +12,7 @@ import { ItemsModule } from './items/items.module';
 import { SearchModule } from './search/search.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { OAuthModule } from './oauth/oauth.module';
+import { SyncModule } from './sync/sync.module';
 
 @Module({
   imports: [
@@ -29,6 +31,24 @@ import { OAuthModule } from './oauth/oauth.module';
       }),
       inject: [ConfigService],
     }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get('REDIS_HOST', 'localhost'),
+          port: configService.get('REDIS_PORT', 6379),
+          password: configService.get('REDIS_PASSWORD'),
+        },
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          },
+        },
+      }),
+      inject: [ConfigService],
+    }),
     CommonModule,
     OAuthModule,
     AuthModule,
@@ -39,6 +59,7 @@ import { OAuthModule } from './oauth/oauth.module';
     ItemsModule,
     SearchModule,
     WebhooksModule,
+    SyncModule,
   ],
 })
 export class AppModule {}
