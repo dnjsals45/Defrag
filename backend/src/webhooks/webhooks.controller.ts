@@ -34,4 +34,10 @@ export class WebhooksController {
   async handleSlackCommands(@Body() payload: any) {
     return this.webhooksService.handleSlackCommand(payload);
   }
+
+  @Post('notion')
+  @HttpCode(HttpStatus.OK)
+  async handleNotion(@Body() payload: any) {
+    return this.webhooksService.handleNotionWebhook(payload);
+  }
 }
