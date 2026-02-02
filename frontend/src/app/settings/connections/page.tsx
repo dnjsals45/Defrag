@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link as LinkIcon, Github, MessageSquare, FileText, Check, X } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
+import { SyncButton, SyncStatus } from '@/components/sync';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { connectionApi, integrationApi } from '@/lib/api';
 import type { Connection, Integration } from '@/types';
@@ -101,6 +102,29 @@ export default function ConnectionsPage() {
             <p className="text-gray-500">외부 서비스를 연결하여 컨텍스트를 수집하세요</p>
           </div>
         </div>
+
+        {/* Sync Section */}
+        {currentWorkspace && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>데이터 동기화</CardTitle>
+                  <p className="text-sm text-gray-500 mt-1">
+                    연결된 서비스에서 데이터를 가져옵니다
+                  </p>
+                </div>
+                <SyncButton
+                  workspaceId={currentWorkspace.id}
+                  onSyncComplete={() => loadConnections()}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <SyncStatus workspaceId={currentWorkspace.id} />
+            </CardContent>
+          </Card>
+        )}
 
         {isLoading ? (
           <div className="flex justify-center py-12">

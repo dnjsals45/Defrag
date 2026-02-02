@@ -107,8 +107,10 @@ export const itemApi = {
     api.post(`/workspaces/${workspaceId}/items`, data),
   delete: (workspaceId: string, itemId: string) =>
     api.delete(`/workspaces/${workspaceId}/items/${itemId}`),
-  sync: (workspaceId: string) =>
-    api.post(`/workspaces/${workspaceId}/items/sync`),
+  sync: (workspaceId: string, options?: { providers?: string[]; syncType?: 'full' | 'incremental' }) =>
+    api.post(`/workspaces/${workspaceId}/items/sync`, options),
+  syncStatus: (workspaceId: string) =>
+    api.get(`/workspaces/${workspaceId}/items/sync/status`),
 };
 
 // Search API
