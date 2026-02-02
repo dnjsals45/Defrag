@@ -13,6 +13,7 @@ import { SearchModule } from './search/search.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { SyncModule } from './sync/sync.module';
+import { EmbeddingModule } from './embedding/embedding.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { SyncModule } from './sync/sync.module';
     SearchModule,
     WebhooksModule,
     SyncModule,
+    EmbeddingModule,
   ],
 })
 export class AppModule {}
