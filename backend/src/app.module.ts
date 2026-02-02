@@ -14,6 +14,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { SyncModule } from './sync/sync.module';
 import { EmbeddingModule } from './embedding/embedding.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { EmbeddingModule } from './embedding/embedding.module';
     WebhooksModule,
     SyncModule,
     EmbeddingModule,
+    SchedulerModule,
   ],
 })
 export class AppModule {}
