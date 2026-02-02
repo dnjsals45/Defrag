@@ -1,6 +1,6 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GitHubOAuthService } from '../../oauth/providers/github.service';
@@ -24,12 +24,15 @@ export interface GitHubSyncResult {
 @Processor('github-sync')
 export class GitHubSyncProcessor extends WorkerHost {
   private readonly logger = new Logger(GitHubSyncProcessor.name);
+  private syncedItemIds: string[] = [];
 
   constructor(
     private readonly githubService: GitHubOAuthService,
     private readonly integrationsService: IntegrationsService,
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
+    @InjectQueue('embedding')
+    private readonly embeddingQueue: Queue,
   ) {
     super();
   }
@@ -39,6 +42,7 @@ export class GitHubSyncProcessor extends WorkerHost {
     this.logger.log(`Starting GitHub sync for workspace ${workspaceId} (${syncType})`);
 
     const result: GitHubSyncResult = { itemsSynced: 0, errors: [] };
+    this.syncedItemIds = [];
 
     try {
       const accessToken = await this.integrationsService.getDecryptedAccessToken(
@@ -69,6 +73,15 @@ export class GitHubSyncProcessor extends WorkerHost {
 
       result.itemsSynced = await this.countSyncedItems(workspaceId);
       this.logger.log(`GitHub sync completed: ${result.itemsSynced} items`);
+
+      // Trigger embedding generation for all synced items
+      if (this.syncedItemIds.length > 0) {
+        await this.embeddingQueue.add('generate', {
+          itemIds: this.syncedItemIds,
+          workspaceId,
+        });
+        this.logger.log(`Queued embedding generation for ${this.syncedItemIds.length} items`);
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`GitHub sync failed: ${errorMsg}`);
@@ -262,13 +275,15 @@ export class GitHubSyncProcessor extends WorkerHost {
         metadata: item.metadata,
         importanceScore: item.importanceScore,
       });
+      this.syncedItemIds.push(existing.id);
     } else {
-      await this.itemsRepository.save(
+      const savedItem = await this.itemsRepository.save(
         this.itemsRepository.create({
           workspaceId,
           ...item,
         }),
       );
+      this.syncedItemIds.push(savedItem.id);
     }
   }
 

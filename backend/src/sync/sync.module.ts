@@ -8,6 +8,7 @@ import { NotionSyncProcessor } from './processors/notion-sync.processor';
 import { ContextItem } from '../database/entities/context-item.entity';
 import { WorkspaceIntegration } from '../database/entities/workspace-integration.entity';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { EmbeddingModule } from '../embedding/embedding.module';
 
 @Module({
   imports: [
@@ -16,8 +17,10 @@ import { IntegrationsModule } from '../integrations/integrations.module';
       { name: 'github-sync' },
       { name: 'slack-sync' },
       { name: 'notion-sync' },
+      { name: 'embedding' },
     ),
     IntegrationsModule,
+    EmbeddingModule,
   ],
   providers: [
     SyncService,

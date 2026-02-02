@@ -1,6 +1,6 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SlackOAuthService, SlackChannel } from '../../oauth/providers/slack.service';
@@ -26,12 +26,15 @@ export interface SlackSyncResult {
 export class SlackSyncProcessor extends WorkerHost {
   private readonly logger = new Logger(SlackSyncProcessor.name);
   private readonly RATE_LIMIT_DELAY = 350; // Slack Tier 2 rate limit
+  private syncedItemIds: string[] = [];
 
   constructor(
     private readonly slackService: SlackOAuthService,
     private readonly integrationsService: IntegrationsService,
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
+    @InjectQueue('embedding')
+    private readonly embeddingQueue: Queue,
   ) {
     super();
   }
@@ -41,6 +44,7 @@ export class SlackSyncProcessor extends WorkerHost {
     this.logger.log(`Starting Slack sync for workspace ${workspaceId} (${syncType})`);
 
     const result: SlackSyncResult = { itemsSynced: 0, errors: [] };
+    this.syncedItemIds = [];
 
     try {
       const accessToken = await this.integrationsService.getDecryptedAccessToken(
@@ -83,6 +87,15 @@ export class SlackSyncProcessor extends WorkerHost {
 
       result.itemsSynced = await this.countSyncedItems(workspaceId);
       this.logger.log(`Slack sync completed: ${result.itemsSynced} items`);
+
+      // Trigger embedding generation for all synced items
+      if (this.syncedItemIds.length > 0) {
+        await this.embeddingQueue.add('generate', {
+          itemIds: this.syncedItemIds,
+          workspaceId,
+        });
+        this.logger.log(`Queued embedding generation for ${this.syncedItemIds.length} items`);
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Slack sync failed: ${errorMsg}`);
@@ -221,13 +234,15 @@ export class SlackSyncProcessor extends WorkerHost {
         metadata: item.metadata,
         importanceScore: item.importanceScore,
       });
+      this.syncedItemIds.push(existing.id);
     } else {
-      await this.itemsRepository.save(
+      const savedItem = await this.itemsRepository.save(
         this.itemsRepository.create({
           workspaceId,
           ...item,
         }),
       );
+      this.syncedItemIds.push(savedItem.id);
     }
   }
 
