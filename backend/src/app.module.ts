@@ -38,21 +38,43 @@ import { ConversationsModule } from './conversations/conversations.module';
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        connection: {
-          host: configService.get('REDIS_HOST', 'localhost'),
-          port: configService.get('REDIS_PORT', 6379),
-          password: configService.get('REDIS_PASSWORD'),
-          tls: configService.get('NODE_ENV') === 'production' ? {} : undefined, // Enable TLS in specific environments
-        },
-        defaultJobOptions: {
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 5000,
+      useFactory: (configService: ConfigService) => {
+        const redisUrl = configService.get<string>('REDIS_URL');
+        if (redisUrl) {
+          const parsed = new URL(redisUrl);
+          return {
+            connection: {
+              host: parsed.hostname,
+              port: Number(parsed.port),
+              username: parsed.username,
+              password: parsed.password,
+              tls: parsed.protocol === 'rediss:' ? {} : undefined,
+            },
+            defaultJobOptions: {
+              attempts: 3,
+              backoff: {
+                type: 'exponential',
+                delay: 5000,
+              },
+            },
+          };
+        }
+        return {
+          connection: {
+            host: configService.get('REDIS_HOST', 'localhost'),
+            port: configService.get('REDIS_PORT', 6379),
+            password: configService.get('REDIS_PASSWORD'),
+            tls: configService.get('NODE_ENV') === 'production' ? {} : undefined,
           },
-        },
-      }),
+          defaultJobOptions: {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 5000,
+            },
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     CommonModule,
