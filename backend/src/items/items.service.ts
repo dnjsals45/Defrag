@@ -1,5 +1,7 @@
-import { Injectable, ForbiddenException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Repository, In } from 'typeorm';
 import { ContextItem, SourceType } from '../database/entities/context-item.entity';
 import { VectorData } from '../database/entities/vector-data.entity';
@@ -7,17 +9,23 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { SyncService, SyncOptions, WorkspaceSyncStatus } from '../sync/sync.service';
 import { Provider } from '../database/entities/user-connection.entity';
+import { ArticleService } from '../article/article.service';
 
 @Injectable()
 export class ItemsService {
+  private readonly logger = new Logger(ItemsService.name);
+
   constructor(
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
     @InjectRepository(VectorData)
     private readonly vectorRepository: Repository<VectorData>,
+    @InjectQueue('embedding')
+    private readonly embeddingQueue: Queue,
     private readonly workspacesService: WorkspacesService,
     @Inject(forwardRef(() => SyncService))
     private readonly syncService: SyncService,
+    private readonly articleService: ArticleService,
   ) {}
 
   async findAll(
@@ -104,18 +112,57 @@ export class ItemsService {
   ): Promise<ContextItem> {
     await this.checkAccess(workspaceId, userId);
 
-    // TODO: Fetch URL content and generate embedding
+    let title = dto.title;
+    let content = dto.content;
+    let metadata: Record<string, any> = { originalUrl: dto.url };
+
+    // If content is not provided, extract it from the URL
+    if (!content) {
+      try {
+        this.logger.log(`Extracting article content from: ${dto.url}`);
+        const article = await this.articleService.extractFromUrl(dto.url);
+
+        title = title || article.title;
+        content = this.articleService.cleanTextContent(article.textContent);
+        metadata = {
+          ...metadata,
+          siteName: article.siteName,
+          byline: article.byline,
+          excerpt: article.excerpt,
+          lang: article.lang,
+          contentLength: article.length,
+        };
+
+        this.logger.log(`Successfully extracted article: ${title}`);
+      } catch (error: any) {
+        this.logger.warn(`Failed to extract article content: ${error.message}`);
+        // Fall back to placeholder if extraction fails
+        content = `Failed to extract content from ${dto.url}. Error: ${error.message}`;
+      }
+    }
+
     const item = this.itemsRepository.create({
       workspaceId,
       authorId: userId,
       sourceType: SourceType.WEB_ARTICLE,
-      title: dto.title || dto.url,
-      content: dto.content || 'Content will be fetched...', // Placeholder
+      externalId: `web:${dto.url}`,
+      title: title || dto.url,
+      content,
       sourceUrl: dto.url,
-      metadata: { originalUrl: dto.url },
+      metadata,
+      importanceScore: 0.5,
     });
 
-    return this.itemsRepository.save(item);
+    const savedItem = await this.itemsRepository.save(item);
+
+    // Queue embedding generation
+    await this.embeddingQueue.add('generate', {
+      itemIds: [savedItem.id],
+      workspaceId,
+    });
+
+    this.logger.log(`Created web article item: ${savedItem.id}`);
+    return savedItem;
   }
 
   async delete(
