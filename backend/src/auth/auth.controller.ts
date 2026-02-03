@@ -105,8 +105,12 @@ export class AuthController {
       });
 
       res.redirect(`${frontendUrl}/auth/callback?${params.toString()}`);
-    } catch (error) {
-      console.error('Google OAuth error:', error);
+    } catch (error: any) {
+      console.error('Google OAuth error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
       res.redirect(`${frontendUrl}/login?error=oauth_failed`);
     }
   }

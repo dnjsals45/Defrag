@@ -52,16 +52,18 @@ export class GoogleOAuthService {
   }
 
   async exchangeCodeForToken(code: string): Promise<GoogleTokenResponse> {
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      code,
+      redirect_uri: this.callbackUrl,
+      grant_type: 'authorization_code',
+    });
+
     const response = await firstValueFrom(
       this.httpService.post<GoogleTokenResponse>(
         'https://oauth2.googleapis.com/token',
-        {
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
-          code,
-          redirect_uri: this.callbackUrl,
-          grant_type: 'authorization_code',
-        },
+        params.toString(),
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
