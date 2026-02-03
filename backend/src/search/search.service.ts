@@ -57,15 +57,17 @@ export class SearchService {
         const mappedResults = filteredResults.map((item: any) => ({
           id: item.id,
           title: item.title,
-          snippet: this.extractSnippet(item.content, query),
+          // Use chunk content if available, otherwise extract snippet from full content
+          snippet: item.chunk_content || this.extractSnippet(item.content, query),
           sourceType: item.source_type,
           sourceUrl: item.source_url,
           score: 1 - item.distance, // Convert distance to similarity score
           distance: item.distance, // 디버깅용
+          chunkIndex: item.chunk_index, // 디버깅용
         }));
 
         this.logger.debug(
-          `Vector search returned ${filteredResults.length} results: ${mappedResults.map((r: any) => `"${r.title}" (score: ${(r.score * 100).toFixed(1)}%)`).join(', ')}`,
+          `Vector search returned ${filteredResults.length} results: ${mappedResults.map((r: any) => `"${r.title}" chunk:${r.chunkIndex} (score: ${(r.score * 100).toFixed(1)}%)`).join(', ')}`,
         );
 
         return { results: mappedResults };
@@ -159,15 +161,26 @@ export class SearchService {
 
   async vectorSearch(workspaceId: string, embedding: number[], limit: number) {
     // Raw query for pgvector similarity search with threshold
+    // Now includes chunk content for better context display
     const results = await this.dataSource.query(
       `
       SELECT
-        ci.*,
+        ci.id,
+        ci.title,
+        ci.content,
+        ci.source_type,
+        ci.source_url,
+        ci.metadata,
+        ci.importance_score,
+        ci.created_at,
+        vd.chunk_index,
+        vd.chunk_content,
         vd.embedding <=> $1::vector AS distance
       FROM context_item ci
       JOIN vector_data vd ON vd.item_id = ci.id
       WHERE ci.workspace_id = $2
         AND ci.deleted_at IS NULL
+        AND vd.deleted_at IS NULL
         AND vd.embedding <=> $1::vector < $4
       ORDER BY distance
       LIMIT $3

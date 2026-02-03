@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   ManyToOne,
-  OneToOne,
+  OneToMany,
   JoinColumn,
   Unique,
 } from 'typeorm';
@@ -79,6 +79,6 @@ export class ContextItem {
   @JoinColumn({ name: 'author_id' })
   author: User;
 
-  @OneToOne(() => VectorData, (vector) => vector.item)
-  vector: VectorData;
+  @OneToMany(() => VectorData, (vector) => vector.item)
+  vectors: VectorData[];
 }

@@ -92,14 +92,17 @@ CREATE TABLE IF NOT EXISTS context_item (
     UNIQUE(workspace_id, source_type, external_id)
 );
 
--- 7. vector_data
+-- 7. vector_data (supports chunking - multiple embeddings per item)
 CREATE TABLE IF NOT EXISTS vector_data (
     id BIGSERIAL PRIMARY KEY,
     item_id BIGINT NOT NULL REFERENCES context_item(id) ON DELETE CASCADE,
+    chunk_index INT NOT NULL DEFAULT 0,
+    chunk_content TEXT,
     embedding vector(1536) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP
+    deleted_at TIMESTAMP,
+    UNIQUE(item_id, chunk_index)
 );
 
 -- 8. item_relation
