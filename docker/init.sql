@@ -2,7 +2,7 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 1. users
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255),
@@ -18,10 +18,10 @@ CREATE TABLE users (
 );
 
 -- Index for social login lookups
-CREATE INDEX idx_users_provider ON users(auth_provider, provider_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_users_provider ON users(auth_provider, provider_id) WHERE deleted_at IS NULL;
 
 -- 2. workspace
-CREATE TABLE workspace (
+CREATE TABLE IF NOT EXISTS workspace (
     id BIGSERIAL PRIMARY KEY,
     owner_id BIGINT NOT NULL REFERENCES users(id),
     name VARCHAR(100) NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE workspace (
 );
 
 -- 3. workspace_member
-CREATE TABLE workspace_member (
+CREATE TABLE IF NOT EXISTS workspace_member (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id),
     workspace_id BIGINT NOT NULL REFERENCES workspace(id),
@@ -43,7 +43,7 @@ CREATE TABLE workspace_member (
 );
 
 -- 4. user_connection (개인 OAuth)
-CREATE TABLE user_connection (
+CREATE TABLE IF NOT EXISTS user_connection (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id),
     provider VARCHAR(50) NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE user_connection (
 );
 
 -- 5. workspace_integration (팀 OAuth)
-CREATE TABLE workspace_integration (
+CREATE TABLE IF NOT EXISTS workspace_integration (
     id BIGSERIAL PRIMARY KEY,
     workspace_id BIGINT NOT NULL REFERENCES workspace(id),
     provider VARCHAR(50) NOT NULL,
@@ -75,7 +75,7 @@ CREATE TABLE workspace_integration (
 );
 
 -- 6. context_item
-CREATE TABLE context_item (
+CREATE TABLE IF NOT EXISTS context_item (
     id BIGSERIAL PRIMARY KEY,
     workspace_id BIGINT NOT NULL REFERENCES workspace(id),
     author_id BIGINT REFERENCES users(id),
@@ -93,7 +93,7 @@ CREATE TABLE context_item (
 );
 
 -- 7. vector_data
-CREATE TABLE vector_data (
+CREATE TABLE IF NOT EXISTS vector_data (
     id BIGSERIAL PRIMARY KEY,
     item_id BIGINT NOT NULL REFERENCES context_item(id) ON DELETE CASCADE,
     embedding vector(1536) NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE vector_data (
 );
 
 -- 8. item_relation
-CREATE TABLE item_relation (
+CREATE TABLE IF NOT EXISTS item_relation (
     id BIGSERIAL PRIMARY KEY,
     source_id BIGINT NOT NULL REFERENCES context_item(id),
     target_id BIGINT NOT NULL REFERENCES context_item(id),
@@ -114,11 +114,35 @@ CREATE TABLE item_relation (
     deleted_at TIMESTAMP
 );
 
+-- 9. conversation
+CREATE TABLE IF NOT EXISTS conversation (
+    id BIGSERIAL PRIMARY KEY,
+    workspace_id BIGINT NOT NULL REFERENCES workspace(id),
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    title VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- 10. conversation_message
+CREATE TABLE IF NOT EXISTS conversation_message (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT NOT NULL REFERENCES conversation(id),
+    role VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    sources JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes
-CREATE INDEX idx_context_item_workspace ON context_item(workspace_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_context_item_source ON context_item(workspace_id, source_type) WHERE deleted_at IS NULL;
-CREATE INDEX idx_workspace_member_workspace ON workspace_member(workspace_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_workspace_member_user ON workspace_member(user_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_vector_embedding ON vector_data USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-CREATE INDEX idx_item_relation_source ON item_relation(source_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_item_relation_target ON item_relation(target_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_context_item_workspace ON context_item(workspace_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_context_item_source ON context_item(workspace_id, source_type) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_workspace_member_workspace ON workspace_member(workspace_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_workspace_member_user ON workspace_member(user_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_vector_embedding ON vector_data USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_item_relation_source ON item_relation(source_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_item_relation_target ON item_relation(target_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_conversation_workspace ON conversation(workspace_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_conversation_user ON conversation(user_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_conversation_message_conversation ON conversation_message(conversation_id);
