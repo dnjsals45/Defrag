@@ -45,6 +45,7 @@ export class ConnectionsService {
       accessToken: string;
       refreshToken?: string;
       tokenExpiresAt?: Date;
+      installationId?: string;
     },
   ): Promise<UserConnection> {
     const existing = await this.findByUserAndProvider(userId, provider);

@@ -41,6 +41,9 @@ export class UserConnection {
   @Column({ name: 'token_expires_at', type: 'timestamp', nullable: true })
   tokenExpiresAt: Date | null;
 
+  @Column({ name: 'installation_id', type: 'varchar', length: 255, nullable: true })
+  installationId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

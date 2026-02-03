@@ -51,6 +51,7 @@ CREATE TABLE user_connection (
     access_token TEXT NOT NULL,
     refresh_token TEXT,
     token_expires_at TIMESTAMP,
+    installation_id VARCHAR(255),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,

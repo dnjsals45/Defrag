@@ -63,10 +63,15 @@ export default function ConnectionsPage() {
 
   const handleConnect = (provider: string, type: 'personal' | 'workspace') => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      alert('로그인이 필요합니다');
+      return;
+    }
     if (type === 'personal') {
-      window.location.href = `${baseUrl}/connections/${provider}/auth`;
+      window.location.href = `${baseUrl}/connections/${provider}/auth?token=${token}`;
     } else if (currentWorkspace) {
-      window.location.href = `${baseUrl}/workspaces/${currentWorkspace.id}/integrations/${provider}/auth`;
+      window.location.href = `${baseUrl}/workspaces/${currentWorkspace.id}/integrations/${provider}/auth?token=${token}`;
     }
   };
 
