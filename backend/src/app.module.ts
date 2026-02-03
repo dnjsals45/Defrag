@@ -43,6 +43,7 @@ import { ConversationsModule } from './conversations/conversations.module';
           host: configService.get('REDIS_HOST', 'localhost'),
           port: configService.get('REDIS_PORT', 6379),
           password: configService.get('REDIS_PASSWORD'),
+          tls: configService.get('NODE_ENV') === 'production' ? {} : undefined, // Enable TLS in specific environments
         },
         defaultJobOptions: {
           attempts: 3,
