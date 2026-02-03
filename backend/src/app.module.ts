@@ -17,6 +17,7 @@ import { EmbeddingModule } from './embedding/embedding.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EmailModule } from './email/email.module';
 import { ConversationsModule } from './conversations/conversations.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { ConversationsModule } from './conversations/conversations.module';
     SchedulerModule,
     EmailModule,
     ConversationsModule,
+    HealthModule,
   ],
 })
-export class AppModule { }
+export class AppModule {}
