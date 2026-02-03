@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Link as LinkIcon, Github, MessageSquare, FileText, Check, X, Settings } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
@@ -52,8 +53,9 @@ const providers = [
   },
 ];
 
-export default function ConnectionsPage() {
+function ConnectionsPageContent() {
   const { currentWorkspace } = useWorkspaceStore();
+  const searchParams = useSearchParams();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showRepoSelector, setShowRepoSelector] = useState(false);
@@ -69,6 +71,24 @@ export default function ConnectionsPage() {
   useEffect(() => {
     loadIntegrations();
   }, [currentWorkspace]);
+
+  // OAuth 연결 완료 후 자동으로 설정창 열기
+  useEffect(() => {
+    const openSettings = searchParams.get('openSettings');
+    if (openSettings && !isLoading) {
+      // URL 파라미터 제거
+      window.history.replaceState({}, '', window.location.pathname);
+
+      // 해당 provider의 설정창 열기
+      if (openSettings === 'github' && isConnected('github')) {
+        openRepoSelector();
+      } else if (openSettings === 'slack' && isConnected('slack')) {
+        openChannelSelector();
+      } else if (openSettings === 'notion' && isConnected('notion')) {
+        openPageSelector();
+      }
+    }
+  }, [searchParams, isLoading, integrations]);
 
   const loadIntegrations = async () => {
     if (!currentWorkspace) {
@@ -379,8 +399,14 @@ export default function ConnectionsPage() {
 
         {/* GitHub Repository Selector Modal */}
         {showRepoSelector && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowRepoSelector(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-4 border-b">
                 <h3 className="text-lg font-semibold">동기화할 레포지토리 선택</h3>
                 <p className="text-sm text-gray-500 mt-1">
@@ -452,8 +478,14 @@ export default function ConnectionsPage() {
 
         {/* Slack Channel Selector Modal */}
         {showChannelSelector && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowChannelSelector(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-4 border-b">
                 <h3 className="text-lg font-semibold">동기화할 채널 선택</h3>
                 <p className="text-sm text-gray-500 mt-1">
@@ -525,8 +557,14 @@ export default function ConnectionsPage() {
 
         {/* Notion Page Selector Modal */}
         {showPageSelector && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowPageSelector(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-4 border-b">
                 <h3 className="text-lg font-semibold">동기화할 페이지 선택</h3>
                 <p className="text-sm text-gray-500 mt-1">
@@ -597,5 +635,19 @@ export default function ConnectionsPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function ConnectionsPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      </AppLayout>
+    }>
+      <ConnectionsPageContent />
+    </Suspense>
   );
 }

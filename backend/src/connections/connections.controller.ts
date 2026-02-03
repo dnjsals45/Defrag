@@ -129,7 +129,7 @@ export class ConnectionsController {
         }
       }
 
-      return res.redirect(`${redirectBase}?success=true&provider=${provider}`);
+      return res.redirect(`${redirectBase}?success=true&provider=${provider}&openSettings=${provider}`);
     } catch (err: any) {
       console.error(`OAuth callback error (${provider}):`, err.message);
       return res.redirect(`${redirectBase}?error=${encodeURIComponent(err.message)}`);

@@ -30,7 +30,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
           className={cn(
-            'bg-white rounded-xl shadow-xl w-full',
+            'bg-white rounded-xl shadow-xl w-full text-gray-900',
             sizes[size]
           )}
           onClick={(e) => e.stopPropagation()}

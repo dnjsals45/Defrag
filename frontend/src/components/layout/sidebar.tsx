@@ -40,9 +40,14 @@ export function Sidebar() {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceType, setNewWorkspaceType] = useState<'personal' | 'team'>('personal');
   const [isCreating, setIsCreating] = useState(false);
+  const [nameError, setNameError] = useState('');
 
   const handleCreateWorkspace = async () => {
-    if (!newWorkspaceName.trim()) return;
+    if (!newWorkspaceName.trim()) {
+      setNameError('워크스페이스 이름은 필수입니다');
+      return;
+    }
+    setNameError('');
     setIsCreating(true);
     try {
       await createWorkspace(newWorkspaceName, newWorkspaceType);
@@ -52,6 +57,18 @@ export function Sidebar() {
       console.error('Failed to create workspace:', error);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleCloseCreateModal = () => {
+    setShowCreateModal(false);
+    setNewWorkspaceName('');
+    setNameError('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isCreating) {
+      handleCreateWorkspace();
     }
   };
 
@@ -159,15 +176,21 @@ export function Sidebar() {
       {/* Create Workspace Modal */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={handleCloseCreateModal}
         title="새 워크스페이스"
       >
         <div className="space-y-4">
           <Input
             label="워크스페이스 이름"
             value={newWorkspaceName}
-            onChange={(e) => setNewWorkspaceName(e.target.value)}
+            onChange={(e) => {
+              setNewWorkspaceName(e.target.value);
+              if (nameError) setNameError('');
+            }}
+            onKeyDown={handleKeyDown}
             placeholder="내 프로젝트"
+            error={nameError}
+            autoFocus
           />
           <Select
             label="유형"
@@ -181,7 +204,7 @@ export function Sidebar() {
           <div className="flex gap-2 pt-2">
             <Button
               variant="outline"
-              onClick={() => setShowCreateModal(false)}
+              onClick={handleCloseCreateModal}
               className="flex-1"
             >
               취소
