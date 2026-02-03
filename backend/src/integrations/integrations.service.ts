@@ -57,11 +57,17 @@ export class IntegrationsService {
         : undefined,
     };
 
+    // Include soft-deleted records to handle reconnection
     const existing = await this.integrationsRepository.findOne({
       where: { workspaceId, provider },
+      withDeleted: true,
     });
 
     if (existing) {
+      // Restore if soft-deleted
+      if (existing.deletedAt) {
+        existing.deletedAt = null;
+      }
       Object.assign(existing, encryptedData);
       return this.integrationsRepository.save(existing);
     }
