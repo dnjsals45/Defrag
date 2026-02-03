@@ -22,6 +22,7 @@ import { EmailModule } from './email/email.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../.env',
+      expandVariables: true,
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -68,4 +69,4 @@ import { EmailModule } from './email/email.module';
     EmailModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

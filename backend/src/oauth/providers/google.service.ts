@@ -34,7 +34,8 @@ export class GoogleOAuthService {
   ) {
     this.clientId = this.configService.get('GOOGLE_CLIENT_ID') || '';
     this.clientSecret = this.configService.get('GOOGLE_CLIENT_SECRET') || '';
-    this.callbackUrl = this.configService.get('GOOGLE_CALLBACK_URL') || '';
+    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
+    this.callbackUrl = this.configService.get('GOOGLE_CALLBACK_URL') || `${backendUrl}/api/auth/google/callback`;
   }
 
   getAuthorizationUrl(state: string): string {

@@ -67,7 +67,8 @@ export class SlackOAuthService {
   ) {
     this.clientId = this.configService.get('SLACK_CLIENT_ID') || '';
     this.clientSecret = this.configService.get('SLACK_CLIENT_SECRET') || '';
-    this.callbackUrl = this.configService.get('SLACK_CALLBACK_URL') || '';
+    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
+    this.callbackUrl = this.configService.get('SLACK_CALLBACK_URL') || `${backendUrl}/api/connections/slack/callback`;
   }
 
   getAuthorizationUrl(state: string, isBot = false): string {

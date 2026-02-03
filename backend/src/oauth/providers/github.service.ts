@@ -91,7 +91,8 @@ export class GitHubOAuthService {
   ) {
     this.clientId = this.configService.get('GITHUB_CLIENT_ID') || '';
     this.clientSecret = this.configService.get('GITHUB_CLIENT_SECRET') || '';
-    this.callbackUrl = this.configService.get('GITHUB_CALLBACK_URL') || '';
+    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
+    this.callbackUrl = this.configService.get('GITHUB_CALLBACK_URL') || `${backendUrl}/api/connections/github/callback`;
   }
 
   // OAuth 인증 URL

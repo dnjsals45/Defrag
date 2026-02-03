@@ -100,7 +100,8 @@ export class NotionOAuthService {
   ) {
     this.clientId = this.configService.get('NOTION_CLIENT_ID') || '';
     this.clientSecret = this.configService.get('NOTION_CLIENT_SECRET') || '';
-    this.callbackUrl = this.configService.get('NOTION_CALLBACK_URL') || '';
+    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
+    this.callbackUrl = this.configService.get('NOTION_CALLBACK_URL') || `${backendUrl}/api/connections/notion/callback`;
   }
 
   getAuthorizationUrl(state: string): string {
