@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { ContextItem, SourceType } from '../database/entities/context-item.entity';
 import { VectorData } from '../database/entities/vector-data.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
@@ -56,6 +56,18 @@ export class ItemsService {
       .take(limit)
       .getManyAndCount();
 
+    // Get item IDs that have embeddings
+    const itemIds = items.map((item) => item.id);
+    let embeddedItemIds: string[] = [];
+
+    if (itemIds.length > 0) {
+      const vectorData = await this.vectorRepository.find({
+        where: { itemId: In(itemIds) },
+        select: ['itemId'],
+      });
+      embeddedItemIds = vectorData.map((v) => v.itemId);
+    }
+
     return {
       items: items.map((item) => ({
         id: item.id,
@@ -63,7 +75,8 @@ export class ItemsService {
         sourceType: item.sourceType,
         sourceUrl: item.sourceUrl,
         createdAt: item.createdAt,
-        snippet: item.content.substring(0, 200),
+        snippet: item.content?.substring(0, 200) || '',
+        hasEmbedding: embeddedItemIds.includes(item.id),
       })),
       total,
       page,

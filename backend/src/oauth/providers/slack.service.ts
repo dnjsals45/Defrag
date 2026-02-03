@@ -80,7 +80,8 @@ export class SlackOAuthService {
 
     if (isBot) {
       // Bot scopes for workspace integration
-      params.set('scope', 'channels:history,channels:read,users:read');
+      // channels:read - public channels, groups:read - private channels
+      params.set('scope', 'channels:history,channels:read,groups:history,groups:read,users:read');
       params.set('user_scope', 'identify');
     } else {
       // User scopes for personal connection

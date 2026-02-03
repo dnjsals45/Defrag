@@ -14,6 +14,10 @@ import { AskDto } from './dto/ask.dto';
 export class SearchService {
   private readonly logger = new Logger(SearchService.name);
 
+  // 유사도 임계값: 0에 가까울수록 유사함 (코사인 거리)
+  // 0.5 이하면 관련성 높음, 0.8 이상이면 관련 없음
+  private readonly SIMILARITY_THRESHOLD = 0.6;
+
   constructor(
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
@@ -49,17 +53,21 @@ export class SearchService {
 
       // If vector search returned results, use them
       if (filteredResults.length > 0) {
-        this.logger.debug(`Vector search returned ${filteredResults.length} results`);
-        return {
-          results: filteredResults.map((item: any) => ({
-            id: item.id,
-            title: item.title,
-            snippet: this.extractSnippet(item.content, query),
-            sourceType: item.source_type,
-            sourceUrl: item.source_url,
-            score: 1 - item.distance, // Convert distance to similarity score
-          })),
-        };
+        const mappedResults = filteredResults.map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          snippet: this.extractSnippet(item.content, query),
+          sourceType: item.source_type,
+          sourceUrl: item.source_url,
+          score: 1 - item.distance, // Convert distance to similarity score
+          distance: item.distance, // 디버깅용
+        }));
+
+        this.logger.debug(
+          `Vector search returned ${filteredResults.length} results: ${mappedResults.map((r: any) => `"${r.title}" (score: ${(r.score * 100).toFixed(1)}%)`).join(', ')}`,
+        );
+
+        return { results: mappedResults };
       }
 
       this.logger.debug('No results from vector search, falling back to text search');
@@ -105,15 +113,22 @@ export class SearchService {
 
     const { question, includeContext = true } = dto;
 
-    // 1. Search for relevant context
+    // 1. Search for relevant context (더 많은 결과 가져오기)
     const searchResults = await this.search(workspaceId, userId, {
       query: question,
-      limit: 5,
+      limit: 10,
     });
 
-    // 2. Build context from search results
-    const context = searchResults.results
-      .map((r: any) => `[${r.sourceType}] ${r.title}:\n${r.snippet}`)
+    // 2. 유사도 높은 결과만 필터링 (score 0.4 이상)
+    const relevantResults = searchResults.results.filter((r: any) => r.score >= 0.4);
+
+    this.logger.debug(
+      `Ask: ${searchResults.results.length} results found, ${relevantResults.length} above score threshold`,
+    );
+
+    // 3. Build context from relevant results
+    const context = relevantResults
+      .map((r: any) => `[${r.sourceType}] ${r.title} (관련도: ${(r.score * 100).toFixed(0)}%):\n${r.snippet}`)
       .join('\n\n---\n\n');
 
     // 3. Generate AI answer using LLM
@@ -141,7 +156,7 @@ export class SearchService {
   }
 
   async vectorSearch(workspaceId: string, embedding: number[], limit: number) {
-    // Raw query for pgvector similarity search
+    // Raw query for pgvector similarity search with threshold
     const results = await this.dataSource.query(
       `
       SELECT
@@ -151,12 +166,14 @@ export class SearchService {
       JOIN vector_data vd ON vd.item_id = ci.id
       WHERE ci.workspace_id = $2
         AND ci.deleted_at IS NULL
+        AND vd.embedding <=> $1::vector < $4
       ORDER BY distance
       LIMIT $3
       `,
-      [`[${embedding.join(',')}]`, workspaceId, limit],
+      [`[${embedding.join(',')}]`, workspaceId, limit, this.SIMILARITY_THRESHOLD],
     );
 
+    this.logger.debug(`Vector search found ${results.length} results within threshold ${this.SIMILARITY_THRESHOLD}`);
     return results;
   }
 

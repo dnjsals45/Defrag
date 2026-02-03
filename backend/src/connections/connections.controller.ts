@@ -207,7 +207,7 @@ export class ConnectionsController {
     code: string,
   ) {
     const tokenData = await this.notionOAuth.exchangeCodeForToken(code);
-    const pages = await this.notionOAuth.getPages(tokenData.access_token);
+    const pages = await this.fetchAllNotionPages(tokenData.access_token);
 
     await this.integrationsService.upsert(workspaceId, userId, Provider.NOTION, {
       accessToken: tokenData.access_token,
@@ -218,6 +218,34 @@ export class ConnectionsController {
         selectedPages: [],
       },
     });
+  }
+
+  private async fetchAllNotionPages(
+    accessToken: string,
+  ): Promise<{ id: string; title: string; icon?: { type: string; emoji?: string } }[]> {
+    const pages: { id: string; title: string; icon?: { type: string; emoji?: string } }[] = [];
+    let cursor: string | undefined;
+
+    while (true) {
+      const result = await this.notionOAuth.getPages(accessToken, cursor);
+
+      pages.push(
+        ...result.pages.map((page) => {
+          const titleProp = Object.values(page.properties).find((p: any) => p.title);
+          const title = titleProp?.title?.[0]?.plain_text || 'Untitled';
+          return {
+            id: page.id,
+            title,
+            icon: page.icon,
+          };
+        }),
+      );
+
+      if (!result.hasMore || !result.nextCursor) break;
+      cursor = result.nextCursor;
+    }
+
+    return pages;
   }
 
   private async fetchAllGitHubRepos(

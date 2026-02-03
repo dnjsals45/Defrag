@@ -5,13 +5,14 @@ import { FolderOpen, Search, Link as LinkIcon, Clock, Plus, Trash2 } from 'lucid
 import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '@/components/ui';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { itemApi } from '@/lib/api';
+import { itemApi, integrationApi } from '@/lib/api';
 import { getSourceIcon, getSourceLabel, formatRelativeTime } from '@/lib/utils';
 import type { ContextItem } from '@/types';
 
 export default function DashboardPage() {
   const { currentWorkspace } = useWorkspaceStore();
   const [recentItems, setRecentItems] = useState<ContextItem[]>([]);
+  const [connectedCount, setConnectedCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddUrl, setShowAddUrl] = useState(false);
   const [newUrl, setNewUrl] = useState('');
@@ -20,8 +21,20 @@ export default function DashboardPage() {
   useEffect(() => {
     if (currentWorkspace) {
       loadRecentItems();
+      loadIntegrations();
     }
   }, [currentWorkspace]);
+
+  const loadIntegrations = async () => {
+    if (!currentWorkspace) return;
+    try {
+      const { data } = await integrationApi.list(currentWorkspace.id);
+      const connected = data.integrations.filter((i: any) => i.connected).length;
+      setConnectedCount(connected);
+    } catch (error) {
+      console.error('Failed to load integrations:', error);
+    }
+  };
 
   const loadRecentItems = async () => {
     if (!currentWorkspace) return;
@@ -73,7 +86,7 @@ export default function DashboardPage() {
     },
     {
       label: '연결된 서비스',
-      value: 0,
+      value: connectedCount,
       icon: LinkIcon,
       color: 'text-green-600 bg-green-100',
     },
@@ -176,9 +189,6 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 truncate">
                           {item.title || '제목 없음'}
-                        </p>
-                        <p className="text-sm text-gray-500 truncate">
-                          {item.snippet}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
                           {getSourceLabel(item.sourceType)} · {formatRelativeTime(item.createdAt)}

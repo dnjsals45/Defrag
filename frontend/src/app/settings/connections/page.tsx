@@ -22,6 +22,12 @@ interface SlackChannel {
   is_member: boolean;
 }
 
+interface NotionPage {
+  id: string;
+  title: string;
+  icon?: { type: string; emoji?: string };
+}
+
 const providers = [
   {
     id: 'github',
@@ -56,6 +62,9 @@ export default function ConnectionsPage() {
   const [showChannelSelector, setShowChannelSelector] = useState(false);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [isSavingChannels, setIsSavingChannels] = useState(false);
+  const [showPageSelector, setShowPageSelector] = useState(false);
+  const [selectedPages, setSelectedPages] = useState<string[]>([]);
+  const [isSavingPages, setIsSavingPages] = useState(false);
 
   useEffect(() => {
     loadIntegrations();
@@ -112,6 +121,10 @@ export default function ConnectionsPage() {
 
   const getSlackIntegration = () => {
     return integrations.find((i) => i.provider === 'slack');
+  };
+
+  const getNotionIntegration = () => {
+    return integrations.find((i) => i.provider === 'notion');
   };
 
   const openRepoSelector = () => {
@@ -182,6 +195,44 @@ export default function ConnectionsPage() {
     }
   };
 
+  const openPageSelector = () => {
+    const notionIntegration = getNotionIntegration();
+    if (notionIntegration?.config?.selectedPages) {
+      setSelectedPages(notionIntegration.config.selectedPages);
+    } else {
+      setSelectedPages([]);
+    }
+    setShowPageSelector(true);
+  };
+
+  const togglePage = (pageId: string) => {
+    setSelectedPages((prev) =>
+      prev.includes(pageId)
+        ? prev.filter((id) => id !== pageId)
+        : [...prev, pageId]
+    );
+  };
+
+  const saveSelectedPages = async () => {
+    if (!currentWorkspace) return;
+    setIsSavingPages(true);
+    try {
+      await integrationApi.updateConfig(currentWorkspace.id, 'notion', {
+        selectedPages,
+      });
+      await loadIntegrations();
+      setShowPageSelector(false);
+    } catch (error) {
+      console.error('Failed to save pages:', error);
+    } finally {
+      setIsSavingPages(false);
+    }
+  };
+
+  const getPageTitle = (page: NotionPage): string => {
+    return page.title || 'Untitled';
+  };
+
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto space-y-6">
@@ -249,12 +300,16 @@ export default function ConnectionsPage() {
                                 {provider.id === 'github' && connected && (
                                   <p className="text-xs text-gray-500">
                                     {getGitHubIntegration()?.config?.selectedRepos?.length || 0}개 레포지토리 선택됨
-                                    {getGitHubIntegration()?.config?.selectedRepos?.length || 0}개 레포지토리 선택됨
                                   </p>
                                 )}
                                 {provider.id === 'slack' && connected && (
                                   <p className="text-xs text-gray-500">
                                     {getSlackIntegration()?.config?.selectedChannels?.length || 0}개 채널 선택됨
+                                  </p>
+                                )}
+                                {provider.id === 'notion' && connected && (
+                                  <p className="text-xs text-gray-500">
+                                    {getNotionIntegration()?.config?.selectedPages?.length || 0}개 페이지 선택됨
                                   </p>
                                 )}
                               </div>
@@ -275,6 +330,16 @@ export default function ConnectionsPage() {
                                       variant="outline"
                                       size="sm"
                                       onClick={openChannelSelector}
+                                    >
+                                      <Settings className="w-4 h-4 mr-1" />
+                                      설정
+                                    </Button>
+                                  )}
+                                  {provider.id === 'notion' && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={openPageSelector}
                                     >
                                       <Settings className="w-4 h-4 mr-1" />
                                       설정
@@ -451,6 +516,79 @@ export default function ConnectionsPage() {
                     disabled={isSavingChannels}
                   >
                     {isSavingChannels ? '저장 중...' : '저장'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Notion Page Selector Modal */}
+        {showPageSelector && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+              <div className="p-4 border-b">
+                <h3 className="text-lg font-semibold">동기화할 페이지 선택</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  선택한 페이지의 콘텐츠만 동기화됩니다
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {(() => {
+                  const notionIntegration = getNotionIntegration();
+                  const availablePages: NotionPage[] = notionIntegration?.config?.availablePages || [];
+
+                  if (availablePages.length === 0) {
+                    return (
+                      <p className="text-gray-500 text-center py-8">
+                        사용 가능한 페이지가 없습니다
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {availablePages.map((page) => (
+                        <label
+                          key={page.id}
+                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPages.includes(page.id)}
+                            onChange={() => togglePage(page.id)}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {page.icon?.emoji && (
+                              <span className="text-lg">{page.icon.emoji}</span>
+                            )}
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {getPageTitle(page)}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="p-4 border-t flex justify-between items-center">
+                <span className="text-sm text-gray-500">
+                  {selectedPages.length}개 선택됨
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPageSelector(false)}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    onClick={saveSelectedPages}
+                    disabled={isSavingPages}
+                  >
+                    {isSavingPages ? '저장 중...' : '저장'}
                   </Button>
                 </div>
               </div>

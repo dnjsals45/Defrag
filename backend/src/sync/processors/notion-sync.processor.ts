@@ -56,22 +56,26 @@ export class NotionSyncProcessor extends WorkerHost {
         return result;
       }
 
-      // Fetch pages to sync
-      if (pageIds && pageIds.length > 0) {
-        // Sync specific pages
-        for (const pageId of pageIds) {
-          try {
-            await this.syncPage(accessToken, pageId, workspaceId, job);
-            await this.delay(this.RATE_LIMIT_DELAY);
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-            this.logger.error(`Error syncing page ${pageId}: ${errorMsg}`);
-            result.errors.push(`Page ${pageId}: ${errorMsg}`);
-          }
+      // Get selected pages from workspace config
+      const selectedPageIds = pageIds || await this.integrationsService.getNotionSelectedPages(workspaceId);
+
+      if (!selectedPageIds || selectedPageIds.length === 0) {
+        result.errors.push('No pages selected for sync');
+        return result;
+      }
+
+      // Sync selected pages
+      await job.updateProgress({ phase: 'fetching_pages', count: selectedPageIds.length });
+
+      for (const pageId of selectedPageIds) {
+        try {
+          await this.syncPage(accessToken, pageId, workspaceId, job);
+          await this.delay(this.RATE_LIMIT_DELAY);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(`Error syncing page ${pageId}: ${errorMsg}`);
+          result.errors.push(`Page ${pageId}: ${errorMsg}`);
         }
-      } else {
-        // Sync all accessible pages
-        await this.syncAllPages(accessToken, workspaceId, job, result);
       }
 
       result.itemsSynced = await this.countSyncedItems(workspaceId);

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Search,
   FolderOpen,
+  Database,
   Settings,
   Users,
   Link as LinkIcon,
@@ -21,6 +22,7 @@ import { Button, Input, Select } from '@/components/ui';
 
 const navItems = [
   { href: '/dashboard', label: '대시보드', icon: FolderOpen },
+  { href: '/items', label: '전체 아이템', icon: Database },
   { href: '/search', label: '검색', icon: Search },
   { href: '/settings/connections', label: '연결 관리', icon: LinkIcon },
   { href: '/settings/members', label: '멤버 관리', icon: Users },

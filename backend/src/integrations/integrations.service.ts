@@ -123,6 +123,16 @@ export class IntegrationsService {
     return integration?.config?.selectedChannels ?? [];
   }
 
+  /**
+   * Get Notion selected pages for a workspace
+   */
+  async getNotionSelectedPages(workspaceId: string): Promise<string[]> {
+    const integration = await this.integrationsRepository.findOne({
+      where: { workspaceId, provider: Provider.NOTION },
+    });
+    return integration?.config?.selectedPages ?? [];
+  }
+
   async updateConfig(
     workspaceId: string,
     userId: string,

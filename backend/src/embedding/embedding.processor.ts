@@ -14,6 +14,7 @@ export interface EmbeddingJobData {
 
 export interface EmbeddingResult {
   processedCount: number;
+  skippedCount: number;
   failedCount: number;
   errors: string[];
 }
@@ -41,6 +42,7 @@ export class EmbeddingProcessor extends WorkerHost {
 
     const result: EmbeddingResult = {
       processedCount: 0,
+      skippedCount: 0,
       failedCount: 0,
       errors: [],
     };
@@ -54,8 +56,12 @@ export class EmbeddingProcessor extends WorkerHost {
         // Process each item in the batch
         for (const itemId of batch) {
           try {
-            await this.processItem(itemId, workspaceId);
-            result.processedCount++;
+            const wasProcessed = await this.processItem(itemId, workspaceId);
+            if (wasProcessed) {
+              result.processedCount++;
+            } else {
+              result.skippedCount++;
+            }
           } catch (error) {
             result.failedCount++;
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -67,6 +73,7 @@ export class EmbeddingProcessor extends WorkerHost {
           const progress = Math.floor(((i + batch.indexOf(itemId) + 1) / itemIds.length) * 100);
           await job.updateProgress({
             processed: result.processedCount,
+            skipped: result.skippedCount,
             failed: result.failedCount,
             total: itemIds.length,
             percentage: progress,
@@ -80,7 +87,7 @@ export class EmbeddingProcessor extends WorkerHost {
       }
 
       this.logger.log(
-        `Embedding generation completed: ${result.processedCount} processed, ${result.failedCount} failed`,
+        `Embedding generation completed: ${result.processedCount} processed, ${result.skippedCount} skipped, ${result.failedCount} failed`,
       );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -91,7 +98,17 @@ export class EmbeddingProcessor extends WorkerHost {
     return result;
   }
 
-  private async processItem(itemId: string, workspaceId: string): Promise<void> {
+  private async processItem(itemId: string, workspaceId: string): Promise<boolean> {
+    // Check if embedding already exists
+    const existingVector = await this.vectorRepository.findOne({
+      where: { itemId },
+    });
+
+    if (existingVector) {
+      this.logger.debug(`Item ${itemId} already has embedding, skipping`);
+      return false; // Skipped
+    }
+
     // Fetch the context item
     const item = await this.itemsRepository.findOne({
       where: {
@@ -109,42 +126,24 @@ export class EmbeddingProcessor extends WorkerHost {
 
     if (!textToEmbed.trim()) {
       this.logger.warn(`Item ${itemId} has no content to embed, skipping`);
-      return;
+      return false; // Skipped
     }
 
     // Generate embedding using the service
     const embedding = await this.embeddingService.generateEmbedding(textToEmbed);
 
-    // Upsert to vector_data table
-    await this.upsertVectorData(itemId, embedding);
+    // Save to vector_data table
+    await this.vectorRepository.save(
+      this.vectorRepository.create({
+        itemId,
+        embedding: `[${embedding.join(',')}]`,
+      }),
+    );
 
     this.logger.debug(`Successfully generated and stored embedding for item ${itemId}`);
+    return true; // Processed
   }
 
-  private async upsertVectorData(itemId: string, embedding: number[]): Promise<void> {
-    // Check if vector data already exists
-    const existing = await this.vectorRepository.findOne({
-      where: { itemId },
-    });
-
-    // Convert embedding array to string format for storage
-    const embeddingStr = `[${embedding.join(',')}]`;
-
-    if (existing) {
-      // Update existing vector data
-      await this.vectorRepository.update(existing.id, {
-        embedding: embeddingStr,
-      });
-    } else {
-      // Create new vector data
-      await this.vectorRepository.save(
-        this.vectorRepository.create({
-          itemId,
-          embedding: embeddingStr,
-        }),
-      );
-    }
-  }
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
