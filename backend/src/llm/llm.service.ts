@@ -44,6 +44,14 @@ export class LLMService {
   }
 
   async generateAnswer(question: string, context: string): Promise<string> {
+    return this.generateAnswerWithHistory(question, context, []);
+  }
+
+  async generateAnswerWithHistory(
+    question: string,
+    context: string,
+    history: { role: 'user' | 'assistant'; content: string }[],
+  ): Promise<string> {
     const systemPrompt = `You are a helpful AI assistant that answers questions based on the provided context from the user's workspace.
 Your answers should be:
 - Accurate and based only on the provided context
@@ -52,14 +60,21 @@ Your answers should be:
 
 If the context doesn't contain enough information to answer the question, say so honestly.`;
 
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+    ];
+
+    // Add conversation history
+    for (const msg of history) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+
+    // Add current question with context
     const userPrompt = context
       ? `Context from workspace:\n${context}\n\nQuestion: ${question}`
       : `Question: ${question}\n\n(No relevant context found in workspace)`;
 
-    const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
+    messages.push({ role: 'user', content: userPrompt });
 
     return this.chatCompletion(messages);
   }

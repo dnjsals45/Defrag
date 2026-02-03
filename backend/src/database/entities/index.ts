@@ -6,3 +6,5 @@ export * from './workspace-integration.entity';
 export * from './context-item.entity';
 export * from './vector-data.entity';
 export * from './item-relation.entity';
+export * from './conversation.entity';
+export * from './conversation-message.entity';

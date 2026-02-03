@@ -130,3 +130,19 @@ export const searchApi = {
   ask: (workspaceId: string, data: { question: string; includeContext?: boolean }) =>
     api.post(`/workspaces/${workspaceId}/ask`, data),
 };
+
+// Conversation API
+export const conversationApi = {
+  list: (workspaceId: string, params?: { page?: number; limit?: number }) =>
+    api.get(`/workspaces/${workspaceId}/conversations`, { params }),
+  get: (workspaceId: string, conversationId: string) =>
+    api.get(`/workspaces/${workspaceId}/conversations/${conversationId}`),
+  create: (workspaceId: string) =>
+    api.post(`/workspaces/${workspaceId}/conversations`),
+  sendMessage: (workspaceId: string, conversationId: string, question: string) =>
+    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/messages`, { question }),
+  delete: (workspaceId: string, conversationId: string) =>
+    api.delete(`/workspaces/${workspaceId}/conversations/${conversationId}`),
+  updateTitle: (workspaceId: string, conversationId: string, title: string) =>
+    api.patch(`/workspaces/${workspaceId}/conversations/${conversationId}`, { title }),
+};

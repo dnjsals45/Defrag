@@ -12,6 +12,7 @@ import {
   LogOut,
   Plus,
   ChevronDown,
+  MessageSquare,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/dashboard', label: '대시보드', icon: FolderOpen },
   { href: '/items', label: '전체 아이템', icon: Database },
   { href: '/search', label: '검색', icon: Search },
+  { href: '/conversations', label: 'AI 대화', icon: MessageSquare },
   { href: '/settings/connections', label: '연결 관리', icon: LinkIcon },
   { href: '/settings/members', label: '멤버 관리', icon: Users },
   { href: '/settings', label: '설정', icon: Settings },
