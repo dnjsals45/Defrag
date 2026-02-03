@@ -1,19 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Link as LinkIcon, Github, MessageSquare, FileText, Check, X } from 'lucide-react';
+import { Link as LinkIcon, Github, MessageSquare, FileText, Check, X, Settings } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
 import { SyncButton, SyncStatus } from '@/components/sync';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { connectionApi, integrationApi } from '@/lib/api';
-import type { Connection, Integration } from '@/types';
+import { integrationApi } from '@/lib/api';
+import type { Integration } from '@/types';
+
+interface GitHubRepo {
+  id: number;
+  fullName: string;
+  private: boolean;
+}
 
 const providers = [
   {
     id: 'github',
     name: 'GitHub',
-    description: 'PR, 이슈, 커밋 등의 활동을 연동합니다',
+    description: '연결 후 원하는 레포지토리를 선택하여 PR, 이슈, 커밋을 연동합니다',
     icon: Github,
     color: 'bg-gray-900',
   },
@@ -35,66 +41,97 @@ const providers = [
 
 export default function ConnectionsPage() {
   const { currentWorkspace } = useWorkspaceStore();
-  const [connections, setConnections] = useState<Connection[]>([]);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showRepoSelector, setShowRepoSelector] = useState(false);
+  const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
+  const [isSavingRepos, setIsSavingRepos] = useState(false);
 
   useEffect(() => {
-    loadConnections();
+    loadIntegrations();
   }, [currentWorkspace]);
 
-  const loadConnections = async () => {
+  const loadIntegrations = async () => {
+    if (!currentWorkspace) {
+      setIntegrations([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
-      const [connRes, intRes] = await Promise.all([
-        connectionApi.list(),
-        currentWorkspace
-          ? integrationApi.list(currentWorkspace.id)
-          : Promise.resolve({ data: { integrations: [] } }),
-      ]);
-      setConnections(connRes.data.connections);
-      setIntegrations(intRes.data.integrations);
+      const res = await integrationApi.list(currentWorkspace.id);
+      setIntegrations(res.data.integrations);
     } catch (error) {
-      console.error('Failed to load connections:', error);
+      console.error('Failed to load integrations:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleConnect = (provider: string, type: 'personal' | 'workspace') => {
+  const handleConnect = (provider: string) => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
     const token = localStorage.getItem('accessToken');
     if (!token) {
       alert('로그인이 필요합니다');
       return;
     }
-    if (type === 'personal') {
-      window.location.href = `${baseUrl}/connections/${provider}/auth?token=${token}`;
-    } else if (currentWorkspace) {
+    if (currentWorkspace) {
       window.location.href = `${baseUrl}/workspaces/${currentWorkspace.id}/integrations/${provider}/auth?token=${token}`;
     }
   };
 
-  const handleDisconnect = async (provider: string, type: 'personal' | 'workspace') => {
+  const handleDisconnect = async (provider: string) => {
     try {
-      if (type === 'personal') {
-        await connectionApi.disconnect(provider);
-      } else if (currentWorkspace) {
+      if (currentWorkspace) {
         await integrationApi.disconnect(currentWorkspace.id, provider);
       }
-      await loadConnections();
+      await loadIntegrations();
     } catch (error) {
       console.error('Failed to disconnect:', error);
     }
   };
 
-  const getConnectionStatus = (providerId: string) => {
-    const connection = connections.find((c) => c.provider === providerId);
+  const isConnected = (providerId: string) => {
     const integration = integrations.find((i) => i.provider === providerId);
-    return {
-      personal: connection?.connected || false,
-      workspace: integration?.connected || false,
-    };
+    return integration?.connected || false;
+  };
+
+  const getGitHubIntegration = () => {
+    return integrations.find((i) => i.provider === 'github');
+  };
+
+  const openRepoSelector = () => {
+    const githubIntegration = getGitHubIntegration();
+    if (githubIntegration?.config?.selectedRepos) {
+      setSelectedRepos(githubIntegration.config.selectedRepos);
+    } else {
+      setSelectedRepos([]);
+    }
+    setShowRepoSelector(true);
+  };
+
+  const toggleRepo = (fullName: string) => {
+    setSelectedRepos((prev) =>
+      prev.includes(fullName)
+        ? prev.filter((r) => r !== fullName)
+        : [...prev, fullName]
+    );
+  };
+
+  const saveSelectedRepos = async () => {
+    if (!currentWorkspace) return;
+    setIsSavingRepos(true);
+    try {
+      await integrationApi.updateConfig(currentWorkspace.id, 'github', {
+        selectedRepos,
+      });
+      await loadIntegrations();
+      setShowRepoSelector(false);
+    } catch (error) {
+      console.error('Failed to save repos:', error);
+    } finally {
+      setIsSavingRepos(false);
+    }
   };
 
   return (
@@ -121,7 +158,7 @@ export default function ConnectionsPage() {
                 </div>
                 <SyncButton
                   workspaceId={currentWorkspace.id}
-                  onSyncComplete={() => loadConnections()}
+                  onSyncComplete={() => loadIntegrations()}
                 />
               </div>
             </CardHeader>
@@ -138,7 +175,7 @@ export default function ConnectionsPage() {
         ) : (
           <div className="space-y-4">
             {providers.map((provider) => {
-              const status = getConnectionStatus(provider.id);
+              const connected = isConnected(provider.id);
               return (
                 <Card key={provider.id}>
                   <CardContent className="py-4">
@@ -157,50 +194,28 @@ export default function ConnectionsPage() {
                         </p>
 
                         {/* Connection Status */}
-                        <div className="mt-4 space-y-3">
-                          {/* Personal Connection */}
-                          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div>
-                              <p className="text-sm font-medium">개인 연결</p>
-                              <p className="text-xs text-gray-500">
-                                내 개인 활동 수집
-                              </p>
-                            </div>
-                            {status.personal ? (
-                              <div className="flex items-center gap-2">
-                                <Badge variant="success">
-                                  <Check className="w-3 h-3 mr-1" />
-                                  연결됨
-                                </Badge>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDisconnect(provider.id, 'personal')}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button
-                                size="sm"
-                                onClick={() => handleConnect(provider.id, 'personal')}
-                              >
-                                연결
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Workspace Integration */}
-                          {currentWorkspace && currentWorkspace.type === 'team' && (
-                            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        {currentWorkspace && (
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between">
                               <div>
-                                <p className="text-sm font-medium">팀 연동</p>
-                                <p className="text-xs text-gray-500">
-                                  팀 전체 활동 수집
-                                </p>
+                                {provider.id === 'github' && connected && (
+                                  <p className="text-xs text-gray-500">
+                                    {getGitHubIntegration()?.config?.selectedRepos?.length || 0}개 레포지토리 선택됨
+                                  </p>
+                                )}
                               </div>
-                              {status.workspace ? (
+                              {connected ? (
                                 <div className="flex items-center gap-2">
+                                  {provider.id === 'github' && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={openRepoSelector}
+                                    >
+                                      <Settings className="w-4 h-4 mr-1" />
+                                      설정
+                                    </Button>
+                                  )}
                                   <Badge variant="success">
                                     <Check className="w-3 h-3 mr-1" />
                                     연결됨
@@ -208,7 +223,7 @@ export default function ConnectionsPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleDisconnect(provider.id, 'workspace')}
+                                    onClick={() => handleDisconnect(provider.id)}
                                   >
                                     <X className="w-4 h-4" />
                                   </Button>
@@ -216,20 +231,93 @@ export default function ConnectionsPage() {
                               ) : (
                                 <Button
                                   size="sm"
-                                  onClick={() => handleConnect(provider.id, 'workspace')}
+                                  onClick={() => handleConnect(provider.id)}
                                 >
                                   연결
                                 </Button>
                               )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               );
             })}
+          </div>
+        )}
+
+        {/* GitHub Repository Selector Modal */}
+        {showRepoSelector && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+              <div className="p-4 border-b">
+                <h3 className="text-lg font-semibold">동기화할 레포지토리 선택</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  선택한 레포지토리의 PR, 이슈, 커밋만 동기화됩니다
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {(() => {
+                  const githubIntegration = getGitHubIntegration();
+                  const availableRepos: GitHubRepo[] = githubIntegration?.config?.availableRepos || [];
+
+                  if (availableRepos.length === 0) {
+                    return (
+                      <p className="text-gray-500 text-center py-8">
+                        사용 가능한 레포지토리가 없습니다
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {availableRepos.map((repo) => (
+                        <label
+                          key={repo.id}
+                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedRepos.includes(repo.fullName)}
+                            onChange={() => toggleRepo(repo.fullName)}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {repo.fullName}
+                            </p>
+                          </div>
+                          {repo.private && (
+                            <Badge variant="default">Private</Badge>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="p-4 border-t flex justify-between items-center">
+                <span className="text-sm text-gray-500">
+                  {selectedRepos.length}개 선택됨
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowRepoSelector(false)}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    onClick={saveSelectedRepos}
+                    disabled={isSavingRepos}
+                  >
+                    {isSavingRepos ? '저장 중...' : '저장'}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

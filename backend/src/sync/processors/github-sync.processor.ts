@@ -55,8 +55,16 @@ export class GitHubSyncProcessor extends WorkerHost {
         return result;
       }
 
-      // Fetch repos with pagination
-      const repos = await this.fetchAllRepos(accessToken, job);
+      // Get selected repos from workspace config
+      const selectedRepos = await this.integrationsService.getGitHubSelectedRepos(workspaceId);
+
+      if (!selectedRepos || selectedRepos.length === 0) {
+        result.errors.push('No repositories selected for sync');
+        return result;
+      }
+
+      const repos = selectedRepos.map((fullName) => ({ full_name: fullName }));
+      await job.updateProgress({ phase: 'fetching_repos', count: repos.length });
 
       // For each repo, fetch issues and PRs
       for (const repo of repos) {

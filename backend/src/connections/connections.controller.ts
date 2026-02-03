@@ -13,6 +13,7 @@ import {
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { ConnectionsService } from './connections.service';
+import { IntegrationsService } from '../integrations/integrations.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Provider } from '../database/entities/user-connection.entity';
 import { OAuthStateService } from '../oauth/oauth-state.service';
@@ -24,12 +25,13 @@ import { NotionOAuthService } from '../oauth/providers/notion.service';
 export class ConnectionsController {
   constructor(
     private readonly connectionsService: ConnectionsService,
+    private readonly integrationsService: IntegrationsService,
     private readonly configService: ConfigService,
     private readonly oauthStateService: OAuthStateService,
     private readonly githubOAuth: GitHubOAuthService,
     private readonly slackOAuth: SlackOAuthService,
     private readonly notionOAuth: NotionOAuthService,
-  ) {}
+  ) { }
 
   @Get()
   @UseGuards(JwtAuthGuard)
@@ -53,8 +55,7 @@ export class ConnectionsController {
     let authUrl: string;
     switch (provider) {
       case Provider.GITHUB:
-        // GitHub App 설치 페이지로 이동 (사용자가 repo 선택 가능)
-        authUrl = this.githubOAuth.getInstallationUrl(state);
+        authUrl = this.githubOAuth.getAuthorizationUrl(state);
         break;
       case Provider.SLACK:
         authUrl = this.slackOAuth.getAuthorizationUrl(state, false);
@@ -75,8 +76,6 @@ export class ConnectionsController {
     @Query('code') code: string,
     @Query('state') state: string,
     @Query('error') error: string,
-    @Query('installation_id') installationId: string,
-    @Query('setup_action') setupAction: string,
     @Res() res: Response,
   ) {
     const frontendUrl = this.configService.get('FRONTEND_URL');
@@ -86,15 +85,8 @@ export class ConnectionsController {
       return res.redirect(`${redirectBase}?error=${encodeURIComponent(error)}`);
     }
 
-    // GitHub App installation returns installation_id instead of code
-    const isGitHubAppInstall = provider === Provider.GITHUB && installationId && setupAction;
-
-    if (!isGitHubAppInstall && (!code || !state)) {
+    if (!code || !state) {
       return res.redirect(`${redirectBase}?error=missing_params`);
-    }
-
-    if (isGitHubAppInstall && !state) {
-      return res.redirect(`${redirectBase}?error=missing_state`);
     }
 
     // Validate state
@@ -112,18 +104,29 @@ export class ConnectionsController {
     }
 
     try {
-      switch (provider) {
-        case Provider.GITHUB:
-          await this.handleGitHubCallback(stateData.userId, code, installationId);
-          break;
-        case Provider.SLACK:
-          await this.handleSlackCallback(stateData.userId, code);
-          break;
-        case Provider.NOTION:
-          await this.handleNotionCallback(stateData.userId, code);
-          break;
-        default:
-          throw new BadRequestException('Invalid provider');
+      // Check if this is a workspace integration (has workspaceId in state)
+      if (stateData.workspaceId) {
+        await this.handleWorkspaceCallback(
+          stateData.workspaceId,
+          stateData.userId,
+          provider,
+          code,
+        );
+      } else {
+        // Personal connection
+        switch (provider) {
+          case Provider.GITHUB:
+            await this.handleGitHubCallback(stateData.userId, code);
+            break;
+          case Provider.SLACK:
+            await this.handleSlackCallback(stateData.userId, code);
+            break;
+          case Provider.NOTION:
+            await this.handleNotionCallback(stateData.userId, code);
+            break;
+          default:
+            throw new BadRequestException('Invalid provider');
+        }
       }
 
       return res.redirect(`${redirectBase}?success=true&provider=${provider}`);
@@ -133,44 +136,114 @@ export class ConnectionsController {
     }
   }
 
-  private async handleGitHubCallback(userId: string, code: string | undefined, installationId: string | undefined) {
-    // GitHub App installation flow
-    if (installationId) {
-      // Get installation token to fetch user info
-      const installationToken = await this.githubOAuth.getInstallationToken(parseInt(installationId, 10));
+  private async handleWorkspaceCallback(
+    workspaceId: string,
+    userId: string,
+    provider: Provider,
+    code: string,
+  ) {
+    switch (provider) {
+      case Provider.GITHUB:
+        await this.handleWorkspaceGitHubCallback(workspaceId, userId, code);
+        break;
+      case Provider.SLACK:
+        await this.handleWorkspaceSlackCallback(workspaceId, userId, code);
+        break;
+      case Provider.NOTION:
+        await this.handleWorkspaceNotionCallback(workspaceId, userId, code);
+        break;
+      default:
+        throw new BadRequestException('Invalid provider');
+    }
+  }
 
-      // If we also have a code, exchange it for user access token
-      if (code) {
-        const tokenData = await this.githubOAuth.exchangeCodeForToken(code);
-        const user = await this.githubOAuth.getUser(tokenData.access_token);
+  private async handleWorkspaceGitHubCallback(
+    workspaceId: string,
+    userId: string,
+    code: string,
+  ) {
+    const tokenData = await this.githubOAuth.exchangeCodeForToken(code);
 
-        await this.connectionsService.upsert(userId, Provider.GITHUB, {
-          providerUserId: user.id.toString(),
-          accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token,
-          tokenExpiresAt: tokenData.expires_in
-            ? new Date(Date.now() + tokenData.expires_in * 1000)
-            : undefined,
-          installationId,
-        });
-      } else {
-        // Installation only - store installation token and ID
-        // Use installation ID as provider user ID temporarily
-        await this.connectionsService.upsert(userId, Provider.GITHUB, {
-          providerUserId: `installation-${installationId}`,
-          accessToken: installationToken.token,
-          tokenExpiresAt: new Date(installationToken.expires_at),
-          installationId,
-        });
-      }
-      return;
+    // Fetch available repositories
+    const repos = await this.fetchAllGitHubRepos(tokenData.access_token);
+
+    await this.integrationsService.upsert(workspaceId, userId, Provider.GITHUB, {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token || undefined,
+      tokenExpiresAt: tokenData.expires_in
+        ? new Date(Date.now() + tokenData.expires_in * 1000)
+        : undefined,
+      config: {
+        availableRepos: repos,
+        selectedRepos: [],
+      },
+    });
+  }
+
+  private async handleWorkspaceSlackCallback(
+    workspaceId: string,
+    userId: string,
+    code: string,
+  ) {
+    const tokenData = await this.slackOAuth.exchangeCodeForToken(code);
+    const channels = await this.slackOAuth.getChannels(tokenData.access_token);
+
+    await this.integrationsService.upsert(workspaceId, userId, Provider.SLACK, {
+      accessToken: tokenData.access_token,
+      config: {
+        teamId: tokenData.team.id,
+        teamName: tokenData.team.name,
+        botUserId: tokenData.bot_user_id,
+        availableChannels: channels,
+        selectedChannels: [],
+      },
+    });
+  }
+
+  private async handleWorkspaceNotionCallback(
+    workspaceId: string,
+    userId: string,
+    code: string,
+  ) {
+    const tokenData = await this.notionOAuth.exchangeCodeForToken(code);
+    const pages = await this.notionOAuth.getPages(tokenData.access_token);
+
+    await this.integrationsService.upsert(workspaceId, userId, Provider.NOTION, {
+      accessToken: tokenData.access_token,
+      config: {
+        notionWorkspaceId: tokenData.workspace_id,
+        notionWorkspaceName: tokenData.workspace_name,
+        availablePages: pages,
+        selectedPages: [],
+      },
+    });
+  }
+
+  private async fetchAllGitHubRepos(
+    accessToken: string,
+  ): Promise<{ id: number; fullName: string; private: boolean }[]> {
+    const repos: { id: number; fullName: string; private: boolean }[] = [];
+    let page = 1;
+    const perPage = 100;
+
+    while (true) {
+      const { data } = await this.githubOAuth.getRepos(accessToken, { page, perPage });
+      repos.push(
+        ...data.map((repo) => ({
+          id: repo.id,
+          fullName: repo.full_name,
+          private: repo.private,
+        })),
+      );
+
+      if (data.length < perPage) break;
+      page++;
     }
 
-    // Standard OAuth flow (fallback)
-    if (!code) {
-      throw new BadRequestException('Missing authorization code');
-    }
+    return repos;
+  }
 
+  private async handleGitHubCallback(userId: string, code: string) {
     const tokenData = await this.githubOAuth.exchangeCodeForToken(code);
     const user = await this.githubOAuth.getUser(tokenData.access_token);
 

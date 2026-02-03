@@ -103,6 +103,16 @@ export class IntegrationsService {
     return this.cryptoService.safeDecrypt(integration.refreshToken);
   }
 
+  /**
+   * Get GitHub selected repositories for a workspace
+   */
+  async getGitHubSelectedRepos(workspaceId: string): Promise<string[]> {
+    const integration = await this.integrationsRepository.findOne({
+      where: { workspaceId, provider: Provider.GITHUB },
+    });
+    return integration?.config?.selectedRepos ?? [];
+  }
+
   async updateConfig(
     workspaceId: string,
     userId: string,

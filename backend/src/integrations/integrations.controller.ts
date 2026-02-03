@@ -88,6 +88,8 @@ export class IntegrationsController {
     @Query('code') code: string,
     @Query('state') state: string,
     @Query('error') error: string,
+    @Query('installation_id') installationId: string,
+    @Query('setup_action') setupAction: string,
     @Res() res: Response,
   ) {
     const frontendUrl = this.configService.get('FRONTEND_URL');
@@ -101,7 +103,7 @@ export class IntegrationsController {
       return res.redirect(`${redirectBase}?error=missing_params`);
     }
 
-    // Validate state
+    // Validate state (required for all flows)
     const stateData = await this.oauthStateService.validateState(state);
     if (!stateData) {
       return res.redirect(`${redirectBase}?error=invalid_state`);
@@ -144,14 +146,44 @@ export class IntegrationsController {
   ) {
     const tokenData = await this.githubOAuth.exchangeCodeForToken(code);
 
+    // Fetch available repositories
+    const repos = await this.fetchAllGitHubRepos(tokenData.access_token);
+
     await this.integrationsService.upsert(workspaceId, userId, Provider.GITHUB, {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token || undefined,
       tokenExpiresAt: tokenData.expires_in
         ? new Date(Date.now() + tokenData.expires_in * 1000)
         : undefined,
-      config: {},
+      config: {
+        availableRepos: repos,
+        selectedRepos: [], // User will select which repos to sync
+      },
     });
+  }
+
+  private async fetchAllGitHubRepos(
+    accessToken: string,
+  ): Promise<{ id: number; fullName: string; private: boolean }[]> {
+    const repos: { id: number; fullName: string; private: boolean }[] = [];
+    let page = 1;
+    const perPage = 100;
+
+    while (true) {
+      const { data } = await this.githubOAuth.getRepos(accessToken, { page, perPage });
+      repos.push(
+        ...data.map((repo) => ({
+          id: repo.id,
+          fullName: repo.full_name,
+          private: repo.private,
+        })),
+      );
+
+      if (data.length < perPage) break;
+      page++;
+    }
+
+    return repos;
   }
 
   private async handleSlackCallback(
