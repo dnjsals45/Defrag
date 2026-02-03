@@ -75,16 +75,19 @@ function ConnectionsPageContent() {
   // OAuth 연결 완료 후 자동으로 설정창 열기
   useEffect(() => {
     const openSettings = searchParams.get('openSettings');
-    if (openSettings && !isLoading) {
+    const success = searchParams.get('success');
+
+    // success=true와 openSettings가 있고, integrations가 로드된 후에만 실행
+    if (openSettings && success === 'true' && !isLoading && integrations.length > 0) {
       // URL 파라미터 제거
       window.history.replaceState({}, '', window.location.pathname);
 
-      // 해당 provider의 설정창 열기
-      if (openSettings === 'github' && isConnected('github')) {
+      // 해당 provider의 설정창 열기 (연결 성공했으므로 isConnected 체크 불필요)
+      if (openSettings === 'github') {
         openRepoSelector();
-      } else if (openSettings === 'slack' && isConnected('slack')) {
+      } else if (openSettings === 'slack') {
         openChannelSelector();
-      } else if (openSettings === 'notion' && isConnected('notion')) {
+      } else if (openSettings === 'notion') {
         openPageSelector();
       }
     }
