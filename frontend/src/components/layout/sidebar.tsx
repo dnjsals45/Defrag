@@ -110,7 +110,10 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          // /settings는 정확히 일치할 때만, 나머지는 하위 경로도 포함
+          const isActive = item.href === '/settings'
+            ? pathname === item.href
+            : (pathname === item.href || pathname.startsWith(item.href + '/'));
           return (
             <Link
               key={item.href}

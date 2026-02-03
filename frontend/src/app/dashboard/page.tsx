@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FolderOpen, Search, Link as LinkIcon, Clock, Plus } from 'lucide-react';
+import { FolderOpen, Search, Link as LinkIcon, Clock, Plus, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '@/components/ui';
 import { useWorkspaceStore } from '@/stores/workspace';
@@ -47,6 +47,20 @@ export default function DashboardPage() {
       console.error('Failed to add URL:', error);
     } finally {
       setIsAddingUrl(false);
+    }
+  };
+
+  const handleDeleteItem = async (e: React.MouseEvent, itemId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!currentWorkspace) return;
+    if (!confirm('이 아티클을 삭제하시겠습니까?')) return;
+
+    try {
+      await itemApi.delete(currentWorkspace.id, itemId);
+      setRecentItems((prev) => prev.filter((item) => item.id !== itemId));
+    } catch (error) {
+      console.error('Failed to delete item:', error);
     }
   };
 
@@ -148,26 +162,37 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {recentItems.map((item) => (
-                  <a
+                  <div
                     key={item.id}
-                    href={item.sourceUrl || '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
                   >
-                    <span className="text-xl">{getSourceIcon(item.sourceType)}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
-                        {item.title || '제목 없음'}
-                      </p>
-                      <p className="text-sm text-gray-500 truncate">
-                        {item.snippet}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {getSourceLabel(item.sourceType)} · {formatRelativeTime(item.createdAt)}
-                      </p>
-                    </div>
-                  </a>
+                    <a
+                      href={item.sourceUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-3 flex-1 min-w-0"
+                    >
+                      <span className="text-xl">{getSourceIcon(item.sourceType)}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">
+                          {item.title || '제목 없음'}
+                        </p>
+                        <p className="text-sm text-gray-500 truncate">
+                          {item.snippet}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {getSourceLabel(item.sourceType)} · {formatRelativeTime(item.createdAt)}
+                        </p>
+                      </div>
+                    </a>
+                    <button
+                      onClick={(e) => handleDeleteItem(e, item.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                      title="삭제"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
