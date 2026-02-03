@@ -16,7 +16,8 @@ export class SearchService {
 
   // 유사도 임계값: 0에 가까울수록 유사함 (코사인 거리)
   // 0.5 이하면 관련성 높음, 0.8 이상이면 관련 없음
-  private readonly SIMILARITY_THRESHOLD = 0.6;
+  // 한국어 텍스트의 경우 거리가 더 클 수 있으므로 0.75로 설정
+  private readonly SIMILARITY_THRESHOLD = 0.75;
 
   constructor(
     @InjectRepository(ContextItem)
@@ -119,8 +120,9 @@ export class SearchService {
       limit: 10,
     });
 
-    // 2. 유사도 높은 결과만 필터링 (score 0.4 이상)
-    const relevantResults = searchResults.results.filter((r: any) => r.score >= 0.4);
+    // 2. 유사도 높은 결과만 필터링 (score 0.25 이상)
+    // 한국어 텍스트의 경우 거리가 더 클 수 있으므로 임계값 낮춤
+    const relevantResults = searchResults.results.filter((r: any) => r.score >= 0.25);
 
     this.logger.debug(
       `Ask: ${searchResults.results.length} results found, ${relevantResults.length} above score threshold`,

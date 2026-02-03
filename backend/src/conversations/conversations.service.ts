@@ -128,8 +128,9 @@ export class ConversationsService {
       limit: 10,
     });
 
-    // Filter by score threshold
-    const relevantResults = searchResults.results.filter((r: any) => r.score >= 0.4);
+    // Filter by score threshold (score = 1 - distance)
+    // 한국어 텍스트의 경우 거리가 더 클 수 있으므로 0.25로 낮춤
+    const relevantResults = searchResults.results.filter((r: any) => r.score >= 0.25);
 
     this.logger.debug(
       `Conversation ${conversationId}: ${searchResults.results.length} results found, ${relevantResults.length} above score threshold`,
