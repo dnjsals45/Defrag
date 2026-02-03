@@ -3,7 +3,6 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -14,6 +13,7 @@ import { SignUpDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { AuthProvider } from '../database/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -31,31 +31,20 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(signUpDto.password, 10);
 
-    // Generate email verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationExpiry = new Date();
-    verificationExpiry.setHours(verificationExpiry.getHours() + 24);
-
     const user = await this.usersService.create({
       ...signUpDto,
       password: hashedPassword,
-      emailVerificationToken: verificationToken,
-      emailVerificationExpiry: verificationExpiry,
-      isEmailVerified: false,
+      authProvider: 'local',
     });
-
-    // Send verification email
-    await this.emailService.sendVerificationEmail(user.email, verificationToken);
 
     const tokens = this.generateTokens(user.id, user.email);
 
     return {
-      message: '인증 이메일을 발송했습니다',
+      message: '회원가입이 완료되었습니다',
       user: {
         id: user.id,
         email: user.email,
         nickname: user.nickname,
-        isEmailVerified: user.isEmailVerified,
       },
       ...tokens,
     };
@@ -65,6 +54,13 @@ export class AuthService {
     const user = await this.usersService.findByEmail(loginDto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Social login users cannot login with password
+    if (user.authProvider !== 'local' || !user.password) {
+      throw new UnauthorizedException(
+        `이 계정은 ${user.authProvider} 소셜 로그인으로 가입되었습니다`,
+      );
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -82,10 +78,82 @@ export class AuthService {
         id: user.id,
         email: user.email,
         nickname: user.nickname,
-        isEmailVerified: user.isEmailVerified,
+        profileImage: user.profileImage,
       },
       ...tokens,
-      ...((!user.isEmailVerified) && { warning: '이메일 인증이 완료되지 않았습니다' }),
+    };
+  }
+
+  async validateSocialLogin(
+    provider: AuthProvider,
+    providerId: string,
+    email: string,
+    nickname: string,
+    profileImage?: string,
+  ) {
+    // First, check if user exists with this provider ID
+    let user = await this.usersService.findByProviderId(provider, providerId);
+
+    if (user) {
+      // User exists with this social account, return tokens
+      const tokens = this.generateTokens(user.id, user.email);
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          nickname: user.nickname,
+          profileImage: user.profileImage,
+        },
+        ...tokens,
+        isNewUser: false,
+      };
+    }
+
+    // Check if user exists with this email
+    const existingUser = await this.usersService.findByEmail(email);
+
+    if (existingUser) {
+      // Link social account to existing user
+      await this.usersService.linkSocialAccount(
+        existingUser.id,
+        provider,
+        providerId,
+        profileImage,
+      );
+
+      const tokens = this.generateTokens(existingUser.id, existingUser.email);
+      return {
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          nickname: existingUser.nickname,
+          profileImage: profileImage || existingUser.profileImage,
+        },
+        ...tokens,
+        isNewUser: false,
+        accountLinked: true,
+      };
+    }
+
+    // Create new user with social account
+    user = await this.usersService.createSocialUser({
+      email,
+      nickname,
+      authProvider: provider,
+      providerId,
+      profileImage,
+    });
+
+    const tokens = this.generateTokens(user.id, user.email);
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        profileImage: user.profileImage,
+      },
+      ...tokens,
+      isNewUser: true,
     };
   }
 
@@ -102,54 +170,6 @@ export class AuthService {
     }
   }
 
-  async verifyEmail(token: string) {
-    const user = await this.usersService.findByVerificationToken(token);
-
-    if (!user) {
-      throw new BadRequestException('유효하지 않은 인증 토큰입니다');
-    }
-
-    if (!user.emailVerificationExpiry || user.emailVerificationExpiry < new Date()) {
-      throw new BadRequestException('인증 토큰이 만료되었습니다');
-    }
-
-    await this.usersService.verifyEmail(user.id);
-
-    return {
-      message: '이메일 인증이 완료되었습니다',
-    };
-  }
-
-  async resendVerificationEmail(email: string) {
-    const user = await this.usersService.findByEmail(email);
-
-    if (!user) {
-      throw new NotFoundException('사용자를 찾을 수 없습니다');
-    }
-
-    if (user.isEmailVerified) {
-      throw new BadRequestException('이미 인증된 이메일입니다');
-    }
-
-    // Generate new verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationExpiry = new Date();
-    verificationExpiry.setHours(verificationExpiry.getHours() + 24);
-
-    await this.usersService.updateVerificationToken(
-      user.id,
-      verificationToken,
-      verificationExpiry,
-    );
-
-    // Send verification email
-    await this.emailService.sendVerificationEmail(user.email, verificationToken);
-
-    return {
-      message: '인증 이메일을 재발송했습니다',
-    };
-  }
-
   async forgotPassword(
     forgotPasswordDto: ForgotPasswordDto,
   ): Promise<{ message: string }> {
@@ -158,6 +178,11 @@ export class AuthService {
     // Security: Always return success even if user doesn't exist
     // to prevent email enumeration attacks
     if (!user) {
+      return { message: '비밀번호 재설정 이메일을 발송했습니다' };
+    }
+
+    // Social login users cannot reset password
+    if (user.authProvider !== 'local') {
       return { message: '비밀번호 재설정 이메일을 발송했습니다' };
     }
 

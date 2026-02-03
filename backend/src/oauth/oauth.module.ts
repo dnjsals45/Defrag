@@ -4,6 +4,8 @@ import { OAuthStateService } from './oauth-state.service';
 import { GitHubOAuthService } from './providers/github.service';
 import { SlackOAuthService } from './providers/slack.service';
 import { NotionOAuthService } from './providers/notion.service';
+import { GoogleOAuthService } from './providers/google.service';
+import { KakaoOAuthService } from './providers/kakao.service';
 
 @Global()
 @Module({
@@ -13,12 +15,16 @@ import { NotionOAuthService } from './providers/notion.service';
     GitHubOAuthService,
     SlackOAuthService,
     NotionOAuthService,
+    GoogleOAuthService,
+    KakaoOAuthService,
   ],
   exports: [
     OAuthStateService,
     GitHubOAuthService,
     SlackOAuthService,
     NotionOAuthService,
+    GoogleOAuthService,
+    KakaoOAuthService,
   ],
 })
 export class OAuthModule {}

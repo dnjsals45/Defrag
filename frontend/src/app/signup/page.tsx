@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Input } from '@/components/ui';
+import { SocialLoginButton } from '@/components/ui/SocialLoginButton';
 import { useAuthStore } from '@/stores/auth';
 
 const signupSchema = z.object({
@@ -36,7 +37,7 @@ export default function SignupPage() {
     setError('');
     try {
       await signup(data.email, data.password, data.nickname);
-      router.push('/signup/success');
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || '회원가입에 실패했습니다');
     } finally {
@@ -51,6 +52,21 @@ export default function SignupPage() {
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-gray-900">Defrag</h1>
             <p className="text-gray-500 mt-2">새 계정 만들기</p>
+          </div>
+
+          {/* Social Login Buttons */}
+          <div className="space-y-3 mb-6">
+            <SocialLoginButton provider="google" />
+            <SocialLoginButton provider="kakao" />
+          </div>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500">또는 이메일로 가입하기</span>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

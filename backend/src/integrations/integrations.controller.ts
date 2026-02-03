@@ -111,6 +111,10 @@ export class IntegrationsController {
       return res.redirect(`${redirectBase}?error=state_mismatch`);
     }
 
+    if (!stateData.userId) {
+      return res.redirect(`${redirectBase}?error=missing_user`);
+    }
+
     try {
       switch (provider) {
         case Provider.GITHUB:

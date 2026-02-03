@@ -5,6 +5,7 @@ interface User {
   id: string;
   email: string;
   nickname: string;
+  profileImage?: string | null;
 }
 
 interface AuthState {
@@ -30,8 +31,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signup: async (email: string, password: string, nickname: string) => {
-    await authApi.signup({ email, password, nickname });
-    // 이메일 인증이 필요하므로 자동 로그인하지 않음
+    const { data } = await authApi.signup({ email, password, nickname });
+    // 이메일 인증 없이 즉시 로그인
+    localStorage.setItem('accessToken', data.accessToken);
+    localStorage.setItem('refreshToken', data.refreshToken);
+    set({ user: data.user, isAuthenticated: true });
   },
 
   logout: () => {

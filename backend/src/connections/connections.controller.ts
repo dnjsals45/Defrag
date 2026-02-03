@@ -97,6 +97,10 @@ export class ConnectionsController {
       return res.redirect(`${redirectBase}?error=provider_mismatch`);
     }
 
+    if (!stateData.userId) {
+      return res.redirect(`${redirectBase}?error=missing_user`);
+    }
+
     try {
       switch (provider) {
         case Provider.GITHUB:

@@ -4,7 +4,7 @@ import Redis from 'ioredis';
 import { randomBytes } from 'crypto';
 
 interface OAuthStateData {
-  userId: string;
+  userId?: string; // Optional for social login (user not yet authenticated)
   provider: string;
   workspaceId?: string; // For workspace integrations
   redirectUrl?: string;

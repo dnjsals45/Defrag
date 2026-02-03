@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../database/entities/user.entity';
+import { User, AuthProvider } from '../database/entities/user.entity';
 
 @Injectable()
 export class UsersService {
@@ -12,13 +12,16 @@ export class UsersService {
 
   async create(data: {
     email: string;
-    password: string;
+    password?: string | null;
     nickname: string;
-    emailVerificationToken?: string;
-    emailVerificationExpiry?: Date;
-    isEmailVerified?: boolean;
+    authProvider?: AuthProvider;
+    providerId?: string | null;
+    profileImage?: string | null;
   }): Promise<User> {
-    const user = this.usersRepository.create(data);
+    const user = this.usersRepository.create({
+      ...data,
+      authProvider: data.authProvider || 'local',
+    });
     return this.usersRepository.save(user);
   }
 
@@ -31,6 +34,43 @@ export class UsersService {
   async findById(id: string): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { id },
+    });
+  }
+
+  async findByProviderId(provider: AuthProvider, providerId: string): Promise<User | null> {
+    return this.usersRepository.findOne({
+      where: { authProvider: provider, providerId },
+    });
+  }
+
+  async createSocialUser(data: {
+    email: string;
+    nickname: string;
+    authProvider: AuthProvider;
+    providerId: string;
+    profileImage?: string | null;
+  }): Promise<User> {
+    const user = this.usersRepository.create({
+      email: data.email,
+      nickname: data.nickname,
+      authProvider: data.authProvider,
+      providerId: data.providerId,
+      profileImage: data.profileImage || null,
+      password: null,
+    });
+    return this.usersRepository.save(user);
+  }
+
+  async linkSocialAccount(
+    userId: string,
+    provider: AuthProvider,
+    providerId: string,
+    profileImage?: string | null,
+  ): Promise<void> {
+    await this.usersRepository.update(userId, {
+      authProvider: provider,
+      providerId,
+      ...(profileImage && { profileImage }),
     });
   }
 
@@ -56,31 +96,6 @@ export class UsersService {
       password: hashedPassword,
       passwordResetToken: null,
       passwordResetExpiry: null,
-    });
-  }
-
-  async findByVerificationToken(token: string): Promise<User | null> {
-    return this.usersRepository.findOne({
-      where: { emailVerificationToken: token },
-    });
-  }
-
-  async verifyEmail(userId: string): Promise<void> {
-    await this.usersRepository.update(userId, {
-      isEmailVerified: true,
-      emailVerificationToken: null,
-      emailVerificationExpiry: null,
-    });
-  }
-
-  async updateVerificationToken(
-    userId: string,
-    token: string,
-    expiry: Date,
-  ): Promise<void> {
-    await this.usersRepository.update(userId, {
-      emailVerificationToken: token,
-      emailVerificationExpiry: expiry,
     });
   }
 }
