@@ -14,7 +14,7 @@ export class IntegrationsService {
     private readonly integrationsRepository: Repository<WorkspaceIntegration>,
     private readonly workspacesService: WorkspacesService,
     private readonly cryptoService: CryptoService,
-  ) {}
+  ) { }
 
   async findAllByWorkspace(workspaceId: string, userId: string) {
     await this.checkAccess(workspaceId, userId);
@@ -111,6 +111,16 @@ export class IntegrationsService {
       where: { workspaceId, provider: Provider.GITHUB },
     });
     return integration?.config?.selectedRepos ?? [];
+  }
+
+  /**
+   * Get Slack selected channels for a workspace
+   */
+  async getSlackSelectedChannels(workspaceId: string): Promise<string[]> {
+    const integration = await this.integrationsRepository.findOne({
+      where: { workspaceId, provider: Provider.SLACK },
+    });
+    return integration?.config?.selectedChannels ?? [];
   }
 
   async updateConfig(

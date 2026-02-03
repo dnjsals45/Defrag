@@ -19,7 +19,7 @@ import { Provider } from '../database/entities/user-connection.entity';
 import { UpdateIntegrationConfigDto } from './dto/update-integration-config.dto';
 import { OAuthStateService } from '../oauth/oauth-state.service';
 import { GitHubOAuthService } from '../oauth/providers/github.service';
-import { SlackOAuthService } from '../oauth/providers/slack.service';
+import { SlackOAuthService, SlackChannel } from '../oauth/providers/slack.service';
 import { NotionOAuthService } from '../oauth/providers/notion.service';
 
 @Controller('workspaces/:workspaceId/integrations')
@@ -32,7 +32,7 @@ export class IntegrationsController {
     private readonly githubOAuth: GitHubOAuthService,
     private readonly slackOAuth: SlackOAuthService,
     private readonly notionOAuth: NotionOAuthService,
-  ) {}
+  ) { }
 
   @Get()
   async findAll(
@@ -186,6 +186,27 @@ export class IntegrationsController {
     return repos;
   }
 
+  private async fetchAllSlackChannels(
+    accessToken: string,
+  ): Promise<SlackChannel[]> {
+    const channels: SlackChannel[] = [];
+    let cursor: string | undefined;
+
+    while (true) {
+      const { data, nextCursor } = await this.slackOAuth.getChannelsWithPagination(accessToken, {
+        limit: 200,
+        cursor,
+      });
+
+      channels.push(...data);
+
+      if (!nextCursor) break;
+      cursor = nextCursor;
+    }
+
+    return channels;
+  }
+
   private async handleSlackCallback(
     workspaceId: string,
     userId: string,
@@ -194,7 +215,7 @@ export class IntegrationsController {
     const tokenData = await this.slackOAuth.exchangeCodeForToken(code);
 
     // Get available channels
-    const channels = await this.slackOAuth.getChannels(tokenData.access_token);
+    const channels = await this.fetchAllSlackChannels(tokenData.access_token);
 
     await this.integrationsService.upsert(workspaceId, userId, Provider.SLACK, {
       accessToken: tokenData.access_token,

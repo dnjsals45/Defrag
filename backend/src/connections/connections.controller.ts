@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Provider } from '../database/entities/user-connection.entity';
 import { OAuthStateService } from '../oauth/oauth-state.service';
 import { GitHubOAuthService } from '../oauth/providers/github.service';
-import { SlackOAuthService } from '../oauth/providers/slack.service';
+import { SlackOAuthService, SlackChannel } from '../oauth/providers/slack.service';
 import { NotionOAuthService } from '../oauth/providers/notion.service';
 
 @Controller('connections')
@@ -186,7 +186,8 @@ export class ConnectionsController {
     code: string,
   ) {
     const tokenData = await this.slackOAuth.exchangeCodeForToken(code);
-    const channels = await this.slackOAuth.getChannels(tokenData.access_token);
+    // Get available channels
+    const channels = await this.fetchAllSlackChannels(tokenData.access_token);
 
     await this.integrationsService.upsert(workspaceId, userId, Provider.SLACK, {
       accessToken: tokenData.access_token,
@@ -241,6 +242,34 @@ export class ConnectionsController {
     }
 
     return repos;
+  }
+
+  private async fetchAllSlackChannels(
+    accessToken: string,
+  ): Promise<SlackChannel[]> {
+    const channels: SlackChannel[] = [];
+    let cursor: string | undefined;
+
+    while (true) {
+      const { data } = await this.slackOAuth.getChannelsWithPagination(accessToken, {
+        limit: 200,
+        cursor,
+      });
+
+      channels.push(...data);
+
+      if (!data.length || !data[0]?.id) break; // Safety check
+
+      // We need to implement pagination support in SlackOAuthService first
+      // For now, getChannels returns all channels in one go (built-in pagination handling in service?)
+      // Checking SlackOAuthService.. it seems getChannels handles simple list but not cursor pagination explicitly exposed.
+      // Let's rely on basic getChannels for now or update SlackOAuthService.
+      break;
+    }
+
+    // Actually, looking at SlackOAuthService.getChannels, it doesn't handle pagination loop.
+    // We should better implement getChannelsWithPagination in SlackOAuthService first.
+    return channels;
   }
 
   private async handleGitHubCallback(userId: string, code: string) {

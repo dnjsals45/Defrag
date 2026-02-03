@@ -60,15 +60,25 @@ export class SlackSyncProcessor extends WorkerHost {
       // Get team domain from config for building URLs
       const teamDomain = await this.getTeamDomain(workspaceId);
 
-      // Get channels to sync
-      let channels: SlackChannel[];
-      if (channelIds && channelIds.length > 0) {
-        const allChannels = await this.slackService.getChannels(accessToken);
-        channels = allChannels.filter((c) => channelIds.includes(c.id));
-      } else {
-        channels = await this.slackService.getChannels(accessToken);
-        // Filter to only channels the bot/user is a member of
-        channels = channels.filter((c) => c.is_member);
+      // Get selected channels from workspace config
+      const selectedChannelIds = await this.integrationsService.getSlackSelectedChannels(workspaceId);
+
+      if (!selectedChannelIds || selectedChannelIds.length === 0) {
+        result.errors.push('No channels selected for sync');
+        return result;
+      }
+
+      // Get channel details for selected channels
+      // We need to fetch all channels to get details (name, is_member, etc)
+      // Optimization: we could just fetch info for specific channels if Slack API supports it well,
+      // but getChannels is cached/efficient enough involved. 
+      // Actually, SlackOAuthService.getChannels fetches all.
+      const allChannels = await this.slackService.getChannels(accessToken);
+      const channels = allChannels.filter((c) => selectedChannelIds.includes(c.id));
+
+      if (channels.length === 0) {
+        result.errors.push('Selected channels not found or bot is not a member');
+        return result;
       }
 
       await job.updateProgress({ phase: 'fetched_channels', count: channels.length });

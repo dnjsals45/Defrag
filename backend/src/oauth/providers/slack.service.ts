@@ -79,7 +79,7 @@ export class SlackOAuthService {
 
     if (isBot) {
       // Bot scopes for workspace integration
-      params.set('scope', 'channels:history,channels:read,chat:write,users:read');
+      params.set('scope', 'channels:history,channels:read,users:read');
       params.set('user_scope', 'identify');
     } else {
       // User scopes for personal connection
@@ -145,6 +145,42 @@ export class SlackOAuthService {
     );
 
     return response.data.channels || [];
+  }
+
+  async getChannelsWithPagination(
+    accessToken: string,
+    options: { limit?: number; cursor?: string; types?: string } = {},
+  ): Promise<{ data: SlackChannel[]; nextCursor?: string }> {
+    const { limit = 200, cursor, types = 'public_channel,private_channel' } = options;
+    const params: Record<string, any> = {
+      types,
+      exclude_archived: true,
+      limit,
+    };
+    if (cursor) params.cursor = cursor;
+
+    const response = await firstValueFrom(
+      this.httpService.get<{
+        ok: boolean;
+        channels: SlackChannel[];
+        response_metadata?: { next_cursor: string };
+        error?: string;
+      }>('https://slack.com/api/conversations.list', {
+        params,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }),
+    );
+
+    if (!response.data.ok) {
+      throw new Error(`Slack API error: ${response.data.error}`);
+    }
+
+    return {
+      data: response.data.channels || [],
+      nextCursor: response.data.response_metadata?.next_cursor,
+    };
   }
 
   // Data fetching methods for sync

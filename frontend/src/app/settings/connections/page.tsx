@@ -15,6 +15,13 @@ interface GitHubRepo {
   private: boolean;
 }
 
+interface SlackChannel {
+  id: string;
+  name: string;
+  is_private: boolean;
+  is_member: boolean;
+}
+
 const providers = [
   {
     id: 'github',
@@ -46,6 +53,9 @@ export default function ConnectionsPage() {
   const [showRepoSelector, setShowRepoSelector] = useState(false);
   const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
   const [isSavingRepos, setIsSavingRepos] = useState(false);
+  const [showChannelSelector, setShowChannelSelector] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [isSavingChannels, setIsSavingChannels] = useState(false);
 
   useEffect(() => {
     loadIntegrations();
@@ -100,6 +110,10 @@ export default function ConnectionsPage() {
     return integrations.find((i) => i.provider === 'github');
   };
 
+  const getSlackIntegration = () => {
+    return integrations.find((i) => i.provider === 'slack');
+  };
+
   const openRepoSelector = () => {
     const githubIntegration = getGitHubIntegration();
     if (githubIntegration?.config?.selectedRepos) {
@@ -131,6 +145,40 @@ export default function ConnectionsPage() {
       console.error('Failed to save repos:', error);
     } finally {
       setIsSavingRepos(false);
+    }
+  };
+
+  const openChannelSelector = () => {
+    const slackIntegration = getSlackIntegration();
+    if (slackIntegration?.config?.selectedChannels) {
+      setSelectedChannels(slackIntegration.config.selectedChannels);
+    } else {
+      setSelectedChannels([]);
+    }
+    setShowChannelSelector(true);
+  };
+
+  const toggleChannel = (channelId: string) => {
+    setSelectedChannels((prev) =>
+      prev.includes(channelId)
+        ? prev.filter((id) => id !== channelId)
+        : [...prev, channelId]
+    );
+  };
+
+  const saveSelectedChannels = async () => {
+    if (!currentWorkspace) return;
+    setIsSavingChannels(true);
+    try {
+      await integrationApi.updateConfig(currentWorkspace.id, 'slack', {
+        selectedChannels,
+      });
+      await loadIntegrations();
+      setShowChannelSelector(false);
+    } catch (error) {
+      console.error('Failed to save channels:', error);
+    } finally {
+      setIsSavingChannels(false);
     }
   };
 
@@ -201,6 +249,12 @@ export default function ConnectionsPage() {
                                 {provider.id === 'github' && connected && (
                                   <p className="text-xs text-gray-500">
                                     {getGitHubIntegration()?.config?.selectedRepos?.length || 0}개 레포지토리 선택됨
+                                    {getGitHubIntegration()?.config?.selectedRepos?.length || 0}개 레포지토리 선택됨
+                                  </p>
+                                )}
+                                {provider.id === 'slack' && connected && (
+                                  <p className="text-xs text-gray-500">
+                                    {getSlackIntegration()?.config?.selectedChannels?.length || 0}개 채널 선택됨
                                   </p>
                                 )}
                               </div>
@@ -211,6 +265,16 @@ export default function ConnectionsPage() {
                                       variant="outline"
                                       size="sm"
                                       onClick={openRepoSelector}
+                                    >
+                                      <Settings className="w-4 h-4 mr-1" />
+                                      설정
+                                    </Button>
+                                  )}
+                                  {provider.id === 'slack' && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={openChannelSelector}
                                     >
                                       <Settings className="w-4 h-4 mr-1" />
                                       설정
@@ -314,6 +378,79 @@ export default function ConnectionsPage() {
                     disabled={isSavingRepos}
                   >
                     {isSavingRepos ? '저장 중...' : '저장'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Slack Channel Selector Modal */}
+        {showChannelSelector && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+              <div className="p-4 border-b">
+                <h3 className="text-lg font-semibold">동기화할 채널 선택</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  선택한 채널의 메시지만 동기화됩니다
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {(() => {
+                  const slackIntegration = getSlackIntegration();
+                  const availableChannels: SlackChannel[] = slackIntegration?.config?.availableChannels || [];
+
+                  if (availableChannels.length === 0) {
+                    return (
+                      <p className="text-gray-500 text-center py-8">
+                        사용 가능한 채널이 없습니다
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {availableChannels.map((channel) => (
+                        <label
+                          key={channel.id}
+                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedChannels.includes(channel.id)}
+                            onChange={() => toggleChannel(channel.id)}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              #{channel.name}
+                            </p>
+                          </div>
+                          {channel.is_private && (
+                            <Badge variant="default" className="bg-gray-500">Private</Badge>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="p-4 border-t flex justify-between items-center">
+                <span className="text-sm text-gray-500">
+                  {selectedChannels.length}개 선택됨
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowChannelSelector(false)}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    onClick={saveSelectedChannels}
+                    disabled={isSavingChannels}
+                  >
+                    {isSavingChannels ? '저장 중...' : '저장'}
                   </Button>
                 </div>
               </div>
