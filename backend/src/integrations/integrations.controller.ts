@@ -240,24 +240,33 @@ export class IntegrationsController {
     userId: string,
     code: string,
   ) {
+    console.log('=== Slack OAuth Callback Start ===');
     const tokenData = await this.slackOAuth.exchangeCodeForToken(code);
 
     console.log('Slack OAuth response:', JSON.stringify({
       hasAccessToken: !!tokenData.access_token,
+      accessTokenPrefix: tokenData.access_token?.substring(0, 20),
       hasAuthedUser: !!tokenData.authed_user,
       authedUserHasToken: !!tokenData.authed_user?.access_token,
+      authedUserTokenPrefix: tokenData.authed_user?.access_token?.substring(0, 20),
       team: tokenData.team,
+      scope: tokenData.scope,
+      authedUserScope: tokenData.authed_user?.scope,
     }, null, 2));
 
     // Use user's access token if available, otherwise fall back to bot token
     const userAccessToken = tokenData.authed_user?.access_token || tokenData.access_token;
+
+    console.log('Using token prefix:', userAccessToken?.substring(0, 20));
 
     if (!userAccessToken) {
       throw new Error('No access token received from Slack');
     }
 
     // Get available channels using user token
+    console.log('Fetching channels...');
     const channels = await this.fetchAllSlackChannels(userAccessToken);
+    console.log(`Fetched ${channels.length} channels`);
 
     await this.integrationsService.upsert(workspaceId, userId, Provider.SLACK, {
       accessToken: userAccessToken,
@@ -269,6 +278,7 @@ export class IntegrationsController {
         selectedChannels: [], // User will select which channels to sync
       },
     });
+    console.log('=== Slack OAuth Callback Complete ===');
   }
 
   private async handleNotionCallback(
