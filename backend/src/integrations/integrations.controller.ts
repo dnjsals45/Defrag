@@ -242,8 +242,19 @@ export class IntegrationsController {
   ) {
     const tokenData = await this.slackOAuth.exchangeCodeForToken(code);
 
-    // Use user's access token (not bot token) - allows access to channels user is member of
-    const userAccessToken = tokenData.authed_user.access_token;
+    console.log('Slack OAuth response:', JSON.stringify({
+      hasAccessToken: !!tokenData.access_token,
+      hasAuthedUser: !!tokenData.authed_user,
+      authedUserHasToken: !!tokenData.authed_user?.access_token,
+      team: tokenData.team,
+    }, null, 2));
+
+    // Use user's access token if available, otherwise fall back to bot token
+    const userAccessToken = tokenData.authed_user?.access_token || tokenData.access_token;
+
+    if (!userAccessToken) {
+      throw new Error('No access token received from Slack');
+    }
 
     // Get available channels using user token
     const channels = await this.fetchAllSlackChannels(userAccessToken);
@@ -253,7 +264,7 @@ export class IntegrationsController {
       config: {
         teamId: tokenData.team.id,
         teamName: tokenData.team.name,
-        authedUserId: tokenData.authed_user.id,
+        authedUserId: tokenData.authed_user?.id,
         availableChannels: channels,
         selectedChannels: [], // User will select which channels to sync
       },
