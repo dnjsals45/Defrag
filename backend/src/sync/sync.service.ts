@@ -117,19 +117,29 @@ export class SyncService {
   }
 
   async getSyncStatus(workspaceId: string): Promise<WorkspaceSyncStatus> {
+    // Get currently connected integrations
+    const connectedIntegrations = await this.integrationsRepository.find({
+      where: { workspaceId },
+    });
+    const connectedProviders = new Set(connectedIntegrations.map((i) => i.provider));
+
     const statuses: SyncStatus[] = [];
 
-    // Check GitHub queue
-    const githubStatus = await this.getQueueStatus(this.githubQueue, workspaceId, Provider.GITHUB);
-    if (githubStatus) statuses.push(githubStatus);
+    // Only check queues for connected integrations
+    if (connectedProviders.has(Provider.GITHUB)) {
+      const githubStatus = await this.getQueueStatus(this.githubQueue, workspaceId, Provider.GITHUB);
+      if (githubStatus) statuses.push(githubStatus);
+    }
 
-    // Check Slack queue
-    const slackStatus = await this.getQueueStatus(this.slackQueue, workspaceId, Provider.SLACK);
-    if (slackStatus) statuses.push(slackStatus);
+    if (connectedProviders.has(Provider.SLACK)) {
+      const slackStatus = await this.getQueueStatus(this.slackQueue, workspaceId, Provider.SLACK);
+      if (slackStatus) statuses.push(slackStatus);
+    }
 
-    // Check Notion queue
-    const notionStatus = await this.getQueueStatus(this.notionQueue, workspaceId, Provider.NOTION);
-    if (notionStatus) statuses.push(notionStatus);
+    if (connectedProviders.has(Provider.NOTION)) {
+      const notionStatus = await this.getQueueStatus(this.notionQueue, workspaceId, Provider.NOTION);
+      if (notionStatus) statuses.push(notionStatus);
+    }
 
     const isRunning = statuses.some((s) => s.status === 'active' || s.status === 'pending');
 
