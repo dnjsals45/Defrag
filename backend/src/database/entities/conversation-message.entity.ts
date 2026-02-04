@@ -6,36 +6,36 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
-} from 'typeorm';
-import { Conversation } from './conversation.entity';
+} from "typeorm";
+import { Conversation } from "./conversation.entity";
 
 export enum MessageRole {
-  USER = 'user',
-  ASSISTANT = 'assistant',
+  USER = "user",
+  ASSISTANT = "assistant",
 }
 
-@Entity('conversation_message')
-@Index('idx_conversation_message_conversation', ['conversationId'])
+@Entity("conversation_message")
+@Index("idx_conversation_message_conversation", ["conversationId"])
 export class ConversationMessage {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
+  @PrimaryGeneratedColumn("increment", { type: "bigint" })
   id: string;
 
-  @Column({ name: 'conversation_id', type: 'bigint' })
+  @Column({ name: "conversation_id", type: "bigint" })
   conversationId: string;
 
-  @Column({ type: 'varchar', length: 20 })
+  @Column({ type: "varchar", length: 20 })
   role: MessageRole;
 
-  @Column({ type: 'text' })
+  @Column({ type: "text" })
   content: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: "jsonb", nullable: true })
   sources: Record<string, any>[] | null;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
   @ManyToOne(() => Conversation, (conversation) => conversation.messages)
-  @JoinColumn({ name: 'conversation_id' })
+  @JoinColumn({ name: "conversation_id" })
   conversation: Conversation;
 }

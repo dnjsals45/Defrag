@@ -1,11 +1,11 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Conversation, ConversationMessage } from '../database/entities';
-import { ConversationsController } from './conversations.controller';
-import { ConversationsService } from './conversations.service';
-import { WorkspacesModule } from '../workspaces/workspaces.module';
-import { SearchModule } from '../search/search.module';
-import { LLMModule } from '../llm/llm.module';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { Conversation, ConversationMessage } from "../database/entities";
+import { ConversationsController } from "./conversations.controller";
+import { ConversationsService } from "./conversations.service";
+import { WorkspacesModule } from "../workspaces/workspaces.module";
+import { SearchModule } from "../search/search.module";
+import { LLMModule } from "../llm/llm.module";
 
 @Module({
   imports: [

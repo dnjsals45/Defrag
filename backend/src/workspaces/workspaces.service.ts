@@ -1,10 +1,21 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Workspace, WorkspaceType } from '../database/entities/workspace.entity';
-import { WorkspaceMember, MemberRole } from '../database/entities/workspace-member.entity';
-import { CreateWorkspaceDto } from './dto/create-workspace.dto';
-import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  Workspace,
+  WorkspaceType,
+} from "../database/entities/workspace.entity";
+import {
+  WorkspaceMember,
+  MemberRole,
+} from "../database/entities/workspace-member.entity";
+import { CreateWorkspaceDto } from "./dto/create-workspace.dto";
+import { UpdateWorkspaceDto } from "./dto/update-workspace.dto";
 
 @Injectable()
 export class WorkspacesService {
@@ -19,11 +30,11 @@ export class WorkspacesService {
     // 같은 사용자의 워크스페이스 중 동일 이름 체크
     const existingWorkspaces = await this.findAllByUser(userId);
     const isDuplicate = existingWorkspaces.some(
-      (ws) => ws.name.toLowerCase() === dto.name.trim().toLowerCase()
+      (ws) => ws.name.toLowerCase() === dto.name.trim().toLowerCase(),
     );
 
     if (isDuplicate) {
-      throw new ConflictException('이미 같은 이름의 워크스페이스가 존재합니다');
+      throw new ConflictException("이미 같은 이름의 워크스페이스가 존재합니다");
     }
 
     const workspace = this.workspacesRepository.create({
@@ -48,7 +59,7 @@ export class WorkspacesService {
   async findAllByUser(userId: string): Promise<any[]> {
     const members = await this.membersRepository.find({
       where: { userId },
-      relations: ['workspace'],
+      relations: ["workspace"],
     });
 
     // Filter out members where workspace is null (soft-deleted)
@@ -73,16 +84,16 @@ export class WorkspacesService {
   async findById(id: string, userId: string): Promise<Workspace> {
     const workspace = await this.workspacesRepository.findOne({
       where: { id },
-      relations: ['members', 'members.user'],
+      relations: ["members", "members.user"],
     });
 
     if (!workspace) {
-      throw new NotFoundException('Workspace not found');
+      throw new NotFoundException("Workspace not found");
     }
 
     const isMember = workspace.members.some((m) => m.userId === userId);
     if (!isMember) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException("Access denied");
     }
 
     return workspace;
@@ -100,7 +111,7 @@ export class WorkspacesService {
     });
 
     if (member?.role !== MemberRole.ADMIN) {
-      throw new ForbiddenException('Only admins can update workspace');
+      throw new ForbiddenException("Only admins can update workspace");
     }
 
     Object.assign(workspace, dto);
@@ -111,13 +122,16 @@ export class WorkspacesService {
     const workspace = await this.findById(id, userId);
 
     if (workspace.ownerId !== userId) {
-      throw new ForbiddenException('Only owner can delete workspace');
+      throw new ForbiddenException("Only owner can delete workspace");
     }
 
     await this.workspacesRepository.softDelete(id);
   }
 
-  async checkAccess(workspaceId: string, userId: string): Promise<WorkspaceMember | null> {
+  async checkAccess(
+    workspaceId: string,
+    userId: string,
+  ): Promise<WorkspaceMember | null> {
     return this.membersRepository.findOne({
       where: { workspaceId, userId },
     });

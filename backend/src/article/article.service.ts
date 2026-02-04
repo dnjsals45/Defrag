@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Readability } from '@mozilla/readability';
-import { JSDOM } from 'jsdom';
-import axios from 'axios';
+import { Injectable, Logger } from "@nestjs/common";
+import { Readability } from "@mozilla/readability";
+import { JSDOM } from "jsdom";
+import axios from "axios";
 
 export interface ExtractedArticle {
   title: string;
@@ -38,11 +38,11 @@ export class ArticleService {
     try {
       const response = await axios.get(url, {
         headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.5",
         },
         timeout: 30000, // 30 seconds timeout
         maxRedirects: 5,
@@ -69,14 +69,14 @@ export class ArticleService {
       const article = reader.parse();
 
       if (!article) {
-        throw new Error('Could not extract article content from the page');
+        throw new Error("Could not extract article content from the page");
       }
 
       return {
-        title: article.title || 'Untitled',
-        content: article.content || '', // HTML content
-        textContent: article.textContent || '', // Plain text content
-        excerpt: article.excerpt || '',
+        title: article.title || "Untitled",
+        content: article.content || "", // HTML content
+        textContent: article.textContent || "", // Plain text content
+        excerpt: article.excerpt || "",
         byline: article.byline ?? null,
         siteName: article.siteName ?? null,
         length: article.length ?? 0,
@@ -93,8 +93,8 @@ export class ArticleService {
    */
   cleanTextContent(textContent: string): string {
     return textContent
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
+      .replace(/\s+/g, " ") // Normalize whitespace
+      .replace(/\n{3,}/g, "\n\n") // Max 2 consecutive newlines
       .trim();
   }
 }

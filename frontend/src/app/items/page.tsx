@@ -142,7 +142,7 @@ export default function ItemsPage() {
       const { data } = await itemApi.create(currentWorkspace.id, { urls: validUrls });
 
       if (data.failed && data.failed.length > 0) {
-        setAddError(`${data.failed.length}개 URL 추가 실패: ${data.failed.map((f: any) => f.url).join(', ')}`);
+        setAddError(`${data.failed.length}개 URL 추가 실패: ${data.failed.map((f: any) => f.url).join(', ')}`); // eslint-disable-line @typescript-eslint/no-explicit-any
       }
 
       if (data.items && data.items.length > 0) {
@@ -150,7 +150,7 @@ export default function ItemsPage() {
         setUrls(['']);
         loadItems();
       }
-    } catch (error: any) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       setAddError(error.response?.data?.message || '아티클 추가에 실패했습니다');
     } finally {
       setIsAdding(false);

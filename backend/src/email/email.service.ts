@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import { Transporter } from 'nodemailer';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as nodemailer from "nodemailer";
+import { Transporter } from "nodemailer";
 
 @Injectable()
 export class EmailService {
@@ -10,18 +10,18 @@ export class EmailService {
 
   constructor(private configService: ConfigService) {
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('SMTP_HOST'),
-      port: this.configService.get<number>('SMTP_PORT'),
-      secure: this.configService.get<number>('SMTP_PORT') === 465,
+      host: this.configService.get<string>("SMTP_HOST"),
+      port: this.configService.get<number>("SMTP_PORT"),
+      secure: this.configService.get<number>("SMTP_PORT") === 465,
       auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASS'),
+        user: this.configService.get<string>("SMTP_USER"),
+        pass: this.configService.get<string>("SMTP_PASS"),
       },
     });
   }
 
   async sendPasswordResetEmail(to: string, token: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const frontendUrl = this.configService.get<string>("FRONTEND_URL");
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
     const htmlContent = `
@@ -74,9 +74,9 @@ export class EmailService {
 
     try {
       await this.transporter.sendMail({
-        from: this.configService.get<string>('SMTP_FROM'),
+        from: this.configService.get<string>("SMTP_FROM"),
         to,
-        subject: 'Reset Your Password',
+        subject: "Reset Your Password",
         html: htmlContent,
       });
       this.logger.log(`Password reset email sent to ${to}`);

@@ -1,14 +1,17 @@
-import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
-import { ContextItem, SourceType } from '../database/entities/context-item.entity';
-import { VectorData } from '../database/entities/vector-data.entity';
-import { WorkspacesService } from '../workspaces/workspaces.service';
-import { EmbeddingService } from '../embedding/embedding.service';
-import { LLMService } from '../llm/llm.service';
-import { SearchDto } from './dto/search.dto';
-import { AskDto } from './dto/ask.dto';
+import { Injectable, ForbiddenException, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource } from "typeorm";
+import { ConfigService } from "@nestjs/config";
+import {
+  ContextItem,
+  SourceType,
+} from "../database/entities/context-item.entity";
+import { VectorData } from "../database/entities/vector-data.entity";
+import { WorkspacesService } from "../workspaces/workspaces.service";
+import { EmbeddingService } from "../embedding/embedding.service";
+import { LLMService } from "../llm/llm.service";
+import { SearchDto } from "./dto/search.dto";
+import { AskDto } from "./dto/ask.dto";
 
 @Injectable()
 export class SearchService {
@@ -39,16 +42,21 @@ export class SearchService {
     // Try semantic search first using embeddings
     try {
       this.logger.debug(`Generating embedding for query: "${query}"`);
-      const queryEmbedding = await this.embeddingService.generateEmbedding(query);
+      const queryEmbedding =
+        await this.embeddingService.generateEmbedding(query);
 
-      this.logger.debug('Performing vector search');
-      const vectorResults = await this.vectorSearch(workspaceId, queryEmbedding, limit);
+      this.logger.debug("Performing vector search");
+      const vectorResults = await this.vectorSearch(
+        workspaceId,
+        queryEmbedding,
+        limit,
+      );
 
       // Filter by sources if specified
       let filteredResults = vectorResults;
       if (sources && sources.length > 0) {
         filteredResults = vectorResults.filter((item: any) =>
-          sources.includes(item.source_type)
+          sources.includes(item.source_type),
         );
       }
 
@@ -58,7 +66,8 @@ export class SearchService {
           id: item.id,
           title: item.title,
           // Use chunk content if available, otherwise extract snippet from full content
-          snippet: item.chunk_content || this.extractSnippet(item.content, query),
+          snippet:
+            item.chunk_content || this.extractSnippet(item.content, query),
           sourceType: item.source_type,
           sourceUrl: item.source_url,
           score: 1 - item.distance, // Convert distance to similarity score
@@ -67,34 +76,37 @@ export class SearchService {
         }));
 
         this.logger.debug(
-          `Vector search returned ${filteredResults.length} results: ${mappedResults.map((r: any) => `"${r.title}" chunk:${r.chunkIndex} (score: ${(r.score * 100).toFixed(1)}%)`).join(', ')}`,
+          `Vector search returned ${filteredResults.length} results: ${mappedResults.map((r: any) => `"${r.title}" chunk:${r.chunkIndex} (score: ${(r.score * 100).toFixed(1)}%)`).join(", ")}`,
         );
 
         return { results: mappedResults };
       }
 
-      this.logger.debug('No results from vector search, falling back to text search');
+      this.logger.debug(
+        "No results from vector search, falling back to text search",
+      );
     } catch (error) {
-      this.logger.warn(`Embedding generation or vector search failed: ${error.message}. Falling back to text search.`);
+      this.logger.warn(
+        `Embedding generation or vector search failed: ${error.message}. Falling back to text search.`,
+      );
     }
 
     // Fallback to text search if vector search returns no results or fails
     const queryBuilder = this.itemsRepository
-      .createQueryBuilder('item')
-      .where('item.workspace_id = :workspaceId', { workspaceId })
-      .andWhere('item.deleted_at IS NULL')
-      .andWhere(
-        '(item.title ILIKE :query OR item.content ILIKE :query)',
-        { query: `%${query}%` },
-      );
+      .createQueryBuilder("item")
+      .where("item.workspace_id = :workspaceId", { workspaceId })
+      .andWhere("item.deleted_at IS NULL")
+      .andWhere("(item.title ILIKE :query OR item.content ILIKE :query)", {
+        query: `%${query}%`,
+      });
 
     if (sources && sources.length > 0) {
-      queryBuilder.andWhere('item.source_type IN (:...sources)', { sources });
+      queryBuilder.andWhere("item.source_type IN (:...sources)", { sources });
     }
 
     const items = await queryBuilder
-      .orderBy('item.importance_score', 'DESC')
-      .addOrderBy('item.created_at', 'DESC')
+      .orderBy("item.importance_score", "DESC")
+      .addOrderBy("item.created_at", "DESC")
       .take(limit)
       .getMany();
 
@@ -124,7 +136,9 @@ export class SearchService {
 
     // 2. 유사도 높은 결과만 필터링 (score 0.25 이상)
     // 한국어 텍스트의 경우 거리가 더 클 수 있으므로 임계값 낮춤
-    const relevantResults = searchResults.results.filter((r: any) => r.score >= 0.25);
+    const relevantResults = searchResults.results.filter(
+      (r: any) => r.score >= 0.25,
+    );
 
     this.logger.debug(
       `Ask: ${searchResults.results.length} results found, ${relevantResults.length} above score threshold`,
@@ -132,8 +146,11 @@ export class SearchService {
 
     // 3. Build context from relevant results
     const context = relevantResults
-      .map((r: any) => `[${r.sourceType}] ${r.title} (관련도: ${(r.score * 100).toFixed(0)}%):\n${r.snippet}`)
-      .join('\n\n---\n\n');
+      .map(
+        (r: any) =>
+          `[${r.sourceType}] ${r.title} (관련도: ${(r.score * 100).toFixed(0)}%):\n${r.snippet}`,
+      )
+      .join("\n\n---\n\n");
 
     // 3. Generate AI answer using LLM
     let answer: string;
@@ -185,10 +202,17 @@ export class SearchService {
       ORDER BY distance
       LIMIT $3
       `,
-      [`[${embedding.join(',')}]`, workspaceId, limit, this.SIMILARITY_THRESHOLD],
+      [
+        `[${embedding.join(",")}]`,
+        workspaceId,
+        limit,
+        this.SIMILARITY_THRESHOLD,
+      ],
     );
 
-    this.logger.debug(`Vector search found ${results.length} results within threshold ${this.SIMILARITY_THRESHOLD}`);
+    this.logger.debug(
+      `Vector search found ${results.length} results within threshold ${this.SIMILARITY_THRESHOLD}`,
+    );
     return results;
   }
 
@@ -198,23 +222,28 @@ export class SearchService {
     const index = lowerContent.indexOf(lowerQuery);
 
     if (index === -1) {
-      return content.substring(0, length) + (content.length > length ? '...' : '');
+      return (
+        content.substring(0, length) + (content.length > length ? "..." : "")
+      );
     }
 
     const start = Math.max(0, index - 50);
     const end = Math.min(content.length, index + query.length + 150);
     let snippet = content.substring(start, end);
 
-    if (start > 0) snippet = '...' + snippet;
-    if (end < content.length) snippet = snippet + '...';
+    if (start > 0) snippet = "..." + snippet;
+    if (end < content.length) snippet = snippet + "...";
 
     return snippet;
   }
 
   private async checkAccess(workspaceId: string, userId: string) {
-    const member = await this.workspacesService.checkAccess(workspaceId, userId);
+    const member = await this.workspacesService.checkAccess(
+      workspaceId,
+      userId,
+    );
     if (!member) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException("Access denied");
     }
     return member;
   }

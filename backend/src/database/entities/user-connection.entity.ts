@@ -8,52 +8,57 @@ import {
   ManyToOne,
   JoinColumn,
   Unique,
-} from 'typeorm';
-import { User } from './user.entity';
+} from "typeorm";
+import { User } from "./user.entity";
 
 export enum Provider {
-  GITHUB = 'github',
-  SLACK = 'slack',
-  NOTION = 'notion',
+  GITHUB = "github",
+  SLACK = "slack",
+  NOTION = "notion",
 }
 
-@Entity('user_connection')
-@Unique(['userId', 'provider'])
+@Entity("user_connection")
+@Unique(["userId", "provider"])
 export class UserConnection {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
+  @PrimaryGeneratedColumn("increment", { type: "bigint" })
   id: string;
 
-  @Column({ name: 'user_id', type: 'bigint' })
+  @Column({ name: "user_id", type: "bigint" })
   userId: string;
 
-  @Column({ type: 'varchar', length: 50 })
+  @Column({ type: "varchar", length: 50 })
   provider: Provider;
 
-  @Column({ name: 'provider_user_id', type: 'varchar', length: 255 })
+  @Column({ name: "provider_user_id", type: "varchar", length: 255 })
   providerUserId: string;
 
-  @Column({ name: 'access_token', type: 'text' })
+  @Column({ name: "access_token", type: "text" })
   accessToken: string;
 
-  @Column({ name: 'refresh_token', type: 'text', nullable: true })
+  @Column({ name: "refresh_token", type: "text", nullable: true })
   refreshToken: string | null;
 
-  @Column({ name: 'token_expires_at', type: 'timestamp', nullable: true })
+  @Column({ name: "token_expires_at", type: "timestamp", nullable: true })
   tokenExpiresAt: Date | null;
 
-  @Column({ name: 'installation_id', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: "installation_id",
+    type: "varchar",
+    length: 255,
+    nullable: true,
+  })
   installationId: string | null;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 
-  @DeleteDateColumn({ name: 'deleted_at' })
+  @DeleteDateColumn({ name: "deleted_at" })
   deletedAt: Date | null;
 
   @ManyToOne(() => User, (user) => user.connections)
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn({ name: "user_id" })
   user: User;
 }

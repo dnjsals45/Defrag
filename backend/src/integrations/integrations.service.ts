@@ -1,11 +1,11 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { WorkspaceIntegration } from '../database/entities/workspace-integration.entity';
-import { Provider } from '../database/entities/user-connection.entity';
-import { WorkspacesService } from '../workspaces/workspaces.service';
-import { MemberRole } from '../database/entities/workspace-member.entity';
-import { CryptoService } from '../common/services/crypto.service';
+import { Injectable, ForbiddenException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { WorkspaceIntegration } from "../database/entities/workspace-integration.entity";
+import { Provider } from "../database/entities/user-connection.entity";
+import { WorkspacesService } from "../workspaces/workspaces.service";
+import { MemberRole } from "../database/entities/workspace-member.entity";
+import { CryptoService } from "../common/services/crypto.service";
 
 @Injectable()
 export class IntegrationsService {
@@ -14,7 +14,7 @@ export class IntegrationsService {
     private readonly integrationsRepository: Repository<WorkspaceIntegration>,
     private readonly workspacesService: WorkspacesService,
     private readonly cryptoService: CryptoService,
-  ) { }
+  ) {}
 
   async findAllByWorkspace(workspaceId: string, userId: string) {
     await this.checkAccess(workspaceId, userId);
@@ -152,7 +152,7 @@ export class IntegrationsService {
     });
 
     if (!integration) {
-      throw new ForbiddenException('Integration not found');
+      throw new ForbiddenException("Integration not found");
     }
 
     integration.config = { ...integration.config, ...config };
@@ -169,9 +169,12 @@ export class IntegrationsService {
   }
 
   private async checkAccess(workspaceId: string, userId: string) {
-    const member = await this.workspacesService.checkAccess(workspaceId, userId);
+    const member = await this.workspacesService.checkAccess(
+      workspaceId,
+      userId,
+    );
     if (!member) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException("Access denied");
     }
     return member;
   }
@@ -179,7 +182,7 @@ export class IntegrationsService {
   private async checkAdminAccess(workspaceId: string, userId: string) {
     const member = await this.checkAccess(workspaceId, userId);
     if (member.role !== MemberRole.ADMIN) {
-      throw new ForbiddenException('Admin access required');
+      throw new ForbiddenException("Admin access required");
     }
     return member;
   }

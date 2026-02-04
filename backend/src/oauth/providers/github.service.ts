@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { firstValueFrom } from "rxjs";
 
 interface GitHubTokenResponse {
   access_token: string;
@@ -88,8 +88,8 @@ export interface GitHubContent {
   html_url: string;
   git_url: string;
   download_url: string | null;
-  type: 'file' | 'dir';
-  content?: string;  // base64 encoded
+  type: "file" | "dir";
+  content?: string; // base64 encoded
   encoding?: string;
 }
 
@@ -112,10 +112,13 @@ export class GitHubOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.clientId = this.configService.get('GITHUB_CLIENT_ID') || '';
-    this.clientSecret = this.configService.get('GITHUB_CLIENT_SECRET') || '';
-    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
-    this.callbackUrl = this.configService.get('GITHUB_CALLBACK_URL') || `${backendUrl}/api/connections/github/callback`;
+    this.clientId = this.configService.get("GITHUB_CLIENT_ID") || "";
+    this.clientSecret = this.configService.get("GITHUB_CLIENT_SECRET") || "";
+    const backendUrl =
+      this.configService.get("BACKEND_URL") || "http://localhost:3001";
+    this.callbackUrl =
+      this.configService.get("GITHUB_CALLBACK_URL") ||
+      `${backendUrl}/api/connections/github/callback`;
   }
 
   // OAuth 인증 URL
@@ -132,7 +135,7 @@ export class GitHubOAuthService {
   async exchangeCodeForToken(code: string): Promise<GitHubTokenResponse> {
     const response = await firstValueFrom(
       this.httpService.post<GitHubTokenResponse>(
-        'https://github.com/login/oauth/access_token',
+        "https://github.com/login/oauth/access_token",
         {
           client_id: this.clientId,
           client_secret: this.clientSecret,
@@ -141,7 +144,7 @@ export class GitHubOAuthService {
         },
         {
           headers: {
-            Accept: 'application/json',
+            Accept: "application/json",
           },
         },
       ),
@@ -151,27 +154,28 @@ export class GitHubOAuthService {
 
   async getUser(accessToken: string): Promise<GitHubUser> {
     const response = await firstValueFrom(
-      this.httpService.get<GitHubUser>('https://api.github.com/user', {
+      this.httpService.get<GitHubUser>("https://api.github.com/user", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github.v3+json',
+          Accept: "application/vnd.github.v3+json",
         },
       }),
     );
     return response.data;
   }
 
-  async getUserEmails(accessToken: string): Promise<{ email: string; primary: boolean }[]> {
+  async getUserEmails(
+    accessToken: string,
+  ): Promise<{ email: string; primary: boolean }[]> {
     const response = await firstValueFrom(
-      this.httpService.get<{ email: string; primary: boolean; verified: boolean }[]>(
-        'https://api.github.com/user/emails',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/vnd.github.v3+json',
-          },
+      this.httpService.get<
+        { email: string; primary: boolean; verified: boolean }[]
+      >("https://api.github.com/user/emails", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/vnd.github.v3+json",
         },
-      ),
+      }),
     );
     return response.data;
   }
@@ -181,20 +185,20 @@ export class GitHubOAuthService {
     options: { page?: number; perPage?: number } = {},
   ): Promise<{
     data: GitHubRepo[];
-    headers: { 'x-ratelimit-remaining'?: string; link?: string };
+    headers: { "x-ratelimit-remaining"?: string; link?: string };
   }> {
     const { page = 1, perPage = 30 } = options;
     const response = await firstValueFrom(
-      this.httpService.get<GitHubRepo[]>('https://api.github.com/user/repos', {
+      this.httpService.get<GitHubRepo[]>("https://api.github.com/user/repos", {
         params: {
           page,
           per_page: perPage,
-          sort: 'updated',
-          direction: 'desc',
+          sort: "updated",
+          direction: "desc",
         },
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github.v3+json',
+          Accept: "application/vnd.github.v3+json",
         },
       }),
     );
@@ -202,8 +206,8 @@ export class GitHubOAuthService {
     return {
       data: response.data,
       headers: {
-        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
-        link: response.headers['link'],
+        "x-ratelimit-remaining": response.headers["x-ratelimit-remaining"],
+        link: response.headers["link"],
       },
     };
   }
@@ -211,18 +215,23 @@ export class GitHubOAuthService {
   async getIssues(
     accessToken: string,
     repo: string,
-    options: { page?: number; perPage?: number; state?: string; since?: string } = {},
+    options: {
+      page?: number;
+      perPage?: number;
+      state?: string;
+      since?: string;
+    } = {},
   ): Promise<{
     data: GitHubIssue[];
-    headers: { 'x-ratelimit-remaining'?: string; link?: string };
+    headers: { "x-ratelimit-remaining"?: string; link?: string };
   }> {
-    const { page = 1, perPage = 30, state = 'all', since } = options;
+    const { page = 1, perPage = 30, state = "all", since } = options;
     const params: Record<string, any> = {
       page,
       per_page: perPage,
       state,
-      sort: 'updated',
-      direction: 'desc',
+      sort: "updated",
+      direction: "desc",
     };
     if (since) params.since = since;
 
@@ -233,7 +242,7 @@ export class GitHubOAuthService {
           params,
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/vnd.github.v3+json',
+            Accept: "application/vnd.github.v3+json",
           },
         },
       ),
@@ -242,8 +251,8 @@ export class GitHubOAuthService {
     return {
       data: response.data,
       headers: {
-        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
-        link: response.headers['link'],
+        "x-ratelimit-remaining": response.headers["x-ratelimit-remaining"],
+        link: response.headers["link"],
       },
     };
   }
@@ -254,9 +263,9 @@ export class GitHubOAuthService {
     options: { page?: number; perPage?: number; state?: string } = {},
   ): Promise<{
     data: GitHubPullRequest[];
-    headers: { 'x-ratelimit-remaining'?: string; link?: string };
+    headers: { "x-ratelimit-remaining"?: string; link?: string };
   }> {
-    const { page = 1, perPage = 30, state = 'all' } = options;
+    const { page = 1, perPage = 30, state = "all" } = options;
     const response = await firstValueFrom(
       this.httpService.get<GitHubPullRequest[]>(
         `https://api.github.com/repos/${repo}/pulls`,
@@ -265,12 +274,12 @@ export class GitHubOAuthService {
             page,
             per_page: perPage,
             state,
-            sort: 'updated',
-            direction: 'desc',
+            sort: "updated",
+            direction: "desc",
           },
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/vnd.github.v3+json',
+            Accept: "application/vnd.github.v3+json",
           },
         },
       ),
@@ -279,8 +288,8 @@ export class GitHubOAuthService {
     return {
       data: response.data,
       headers: {
-        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
-        link: response.headers['link'],
+        "x-ratelimit-remaining": response.headers["x-ratelimit-remaining"],
+        link: response.headers["link"],
       },
     };
   }
@@ -291,7 +300,7 @@ export class GitHubOAuthService {
     options: { page?: number; perPage?: number; since?: string } = {},
   ): Promise<{
     data: GitHubCommit[];
-    headers: { 'x-ratelimit-remaining'?: string; link?: string };
+    headers: { "x-ratelimit-remaining"?: string; link?: string };
   }> {
     const { page = 1, perPage = 30, since } = options;
     const params: Record<string, any> = {
@@ -307,7 +316,7 @@ export class GitHubOAuthService {
           params,
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/vnd.github.v3+json',
+            Accept: "application/vnd.github.v3+json",
           },
         },
       ),
@@ -316,8 +325,8 @@ export class GitHubOAuthService {
     return {
       data: response.data,
       headers: {
-        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
-        link: response.headers['link'],
+        "x-ratelimit-remaining": response.headers["x-ratelimit-remaining"],
+        link: response.headers["link"],
       },
     };
   }
@@ -325,10 +334,10 @@ export class GitHubOAuthService {
   async getContents(
     accessToken: string,
     repo: string,
-    path: string = '',
+    path: string = "",
   ): Promise<{
     data: GitHubContent | GitHubContent[];
-    headers: { 'x-ratelimit-remaining'?: string };
+    headers: { "x-ratelimit-remaining"?: string };
   }> {
     const response = await firstValueFrom(
       this.httpService.get<GitHubContent | GitHubContent[]>(
@@ -336,7 +345,7 @@ export class GitHubOAuthService {
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/vnd.github.v3+json',
+            Accept: "application/vnd.github.v3+json",
           },
         },
       ),
@@ -345,7 +354,7 @@ export class GitHubOAuthService {
     return {
       data: response.data,
       headers: {
-        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
+        "x-ratelimit-remaining": response.headers["x-ratelimit-remaining"],
       },
     };
   }
@@ -362,12 +371,12 @@ export class GitHubOAuthService {
         return null; // It's a directory, not a file
       }
 
-      if (data.type !== 'file' || !data.content) {
+      if (data.type !== "file" || !data.content) {
         return null;
       }
 
       // Decode base64 content
-      const content = Buffer.from(data.content, 'base64').toString('utf-8');
+      const content = Buffer.from(data.content, "base64").toString("utf-8");
 
       return {
         path: data.path,
@@ -388,14 +397,14 @@ export class GitHubOAuthService {
   async getMarkdownFiles(
     accessToken: string,
     repo: string,
-    path: string = '',
+    path: string = "",
   ): Promise<GitHubContent[]> {
     try {
       const { data } = await this.getContents(accessToken, repo, path);
 
       if (!Array.isArray(data)) {
         // Single file
-        if (data.name.toLowerCase().endsWith('.md')) {
+        if (data.name.toLowerCase().endsWith(".md")) {
           return [data];
         }
         return [];
@@ -403,7 +412,8 @@ export class GitHubOAuthService {
 
       // Filter markdown files
       return data.filter(
-        (item) => item.type === 'file' && item.name.toLowerCase().endsWith('.md'),
+        (item) =>
+          item.type === "file" && item.name.toLowerCase().endsWith(".md"),
       );
     } catch (error: any) {
       if (error.response?.status === 404) {

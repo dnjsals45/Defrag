@@ -1,15 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-import * as crypto from 'crypto';
-import { ContextItem, SourceType } from '../database/entities/context-item.entity';
-import { GitHubTransformer } from '../sync/transformers/github.transformer';
-import { SlackTransformer } from '../sync/transformers/slack.transformer';
-import { NotionTransformer } from '../sync/transformers/notion.transformer';
-import { WebhookWorkspaceService } from './webhook-workspace.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue } from "bullmq";
+import * as crypto from "crypto";
+import {
+  ContextItem,
+  SourceType,
+} from "../database/entities/context-item.entity";
+import { GitHubTransformer } from "../sync/transformers/github.transformer";
+import { SlackTransformer } from "../sync/transformers/slack.transformer";
+import { NotionTransformer } from "../sync/transformers/notion.transformer";
+import { WebhookWorkspaceService } from "./webhook-workspace.service";
 
 @Injectable()
 export class WebhooksService {
@@ -19,7 +22,7 @@ export class WebhooksService {
     private readonly configService: ConfigService,
     @InjectRepository(ContextItem)
     private readonly contextItemRepository: Repository<ContextItem>,
-    @InjectQueue('embedding')
+    @InjectQueue("embedding")
     private readonly embeddingQueue: Queue,
     private readonly webhookWorkspaceService: WebhookWorkspaceService,
   ) {}
@@ -30,22 +33,22 @@ export class WebhooksService {
     signature: string,
   ): Promise<void> {
     // Verify signature
-    const secret = this.configService.get('GITHUB_WEBHOOK_SECRET');
+    const secret = this.configService.get("GITHUB_WEBHOOK_SECRET");
     if (secret && !this.verifyGitHubSignature(payload, signature, secret)) {
-      throw new Error('Invalid signature');
+      throw new Error("Invalid signature");
     }
 
     this.logger.log(`Received GitHub event: ${event}`);
 
     // Process different event types
     switch (event) {
-      case 'pull_request':
+      case "pull_request":
         await this.handlePullRequest(payload);
         break;
-      case 'issues':
+      case "issues":
         await this.handleIssue(payload);
         break;
-      case 'push':
+      case "push":
         await this.handlePush(payload);
         break;
       default:
@@ -55,14 +58,14 @@ export class WebhooksService {
 
   async handleSlackEvent(payload: any): Promise<any> {
     // Handle Slack URL verification challenge
-    if (payload.type === 'url_verification') {
+    if (payload.type === "url_verification") {
       return { challenge: payload.challenge };
     }
 
     this.logger.log(`Received Slack event: ${payload.event?.type}`);
 
     // Process different event types
-    if (payload.event?.type === 'message') {
+    if (payload.event?.type === "message") {
       await this.handleSlackMessage(payload.event, payload.team_id);
     }
 
@@ -74,17 +77,17 @@ export class WebhooksService {
 
     this.logger.log(`Received Slack command: ${command} from ${user_id}`);
 
-    if (command === '/defrag') {
+    if (command === "/defrag") {
       // TODO: Process the query and return response
       return {
-        response_type: 'ephemeral',
+        response_type: "ephemeral",
         text: `Searching for: "${text}"...\n\n_This feature is coming soon!_`,
       };
     }
 
     return {
-      response_type: 'ephemeral',
-      text: 'Unknown command',
+      response_type: "ephemeral",
+      text: "Unknown command",
     };
   }
 
@@ -92,33 +95,38 @@ export class WebhooksService {
     this.logger.log(`Received Notion webhook: ${payload.type}`);
 
     // Process page.updated events
-    if (payload.type === 'page.updated') {
+    if (payload.type === "page.updated") {
       const pageId = payload.data?.id;
       if (!pageId) {
-        this.logger.warn('No page ID in Notion webhook payload');
+        this.logger.warn("No page ID in Notion webhook payload");
         return;
       }
 
       // Extract workspace ID from payload
       const notionWorkspaceId = payload.workspace_id;
       if (!notionWorkspaceId) {
-        this.logger.warn('No workspace ID in Notion webhook payload');
+        this.logger.warn("No workspace ID in Notion webhook payload");
         return;
       }
 
       // Find workspace by Notion workspace ID
-      const workspaceId = await this.webhookWorkspaceService.findWorkspaceByNotionWorkspace(
-        notionWorkspaceId,
-      );
+      const workspaceId =
+        await this.webhookWorkspaceService.findWorkspaceByNotionWorkspace(
+          notionWorkspaceId,
+        );
 
       if (!workspaceId) {
-        this.logger.debug(`No workspace found for Notion workspace: ${notionWorkspaceId}`);
+        this.logger.debug(
+          `No workspace found for Notion workspace: ${notionWorkspaceId}`,
+        );
         return;
       }
 
       // Transform minimal page data (webhook doesn't include full content)
-      const title = payload.data?.properties?.title?.title?.[0]?.plain_text || 'Untitled';
-      const url = payload.data?.url || `https://notion.so/${pageId.replace(/-/g, '')}`;
+      const title =
+        payload.data?.properties?.title?.title?.[0]?.plain_text || "Untitled";
+      const url =
+        payload.data?.url || `https://notion.so/${pageId.replace(/-/g, "")}`;
 
       const transformed = {
         externalId: `notion:page:${pageId}`,
@@ -138,7 +146,7 @@ export class WebhooksService {
       const item = await this.upsertContextItem(workspaceId, transformed);
 
       // Queue embedding generation
-      await this.embeddingQueue.add('generate', {
+      await this.embeddingQueue.add("generate", {
         itemIds: [item.id],
         workspaceId,
       });
@@ -152,22 +160,24 @@ export class WebhooksService {
     signature: string,
     secret: string,
   ): boolean {
-    const hmac = crypto.createHmac('sha256', secret);
-    const digest = 'sha256=' + hmac.update(JSON.stringify(payload)).digest('hex');
+    const hmac = crypto.createHmac("sha256", secret);
+    const digest =
+      "sha256=" + hmac.update(JSON.stringify(payload)).digest("hex");
     return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
   }
 
   private async handlePullRequest(payload: any): Promise<void> {
     const repoFullName = payload.repository?.full_name;
     if (!repoFullName) {
-      this.logger.warn('No repository full name in PR payload');
+      this.logger.warn("No repository full name in PR payload");
       return;
     }
 
     // Find workspace by repository
-    const workspaceId = await this.webhookWorkspaceService.findWorkspaceByGitHubRepo(
-      repoFullName,
-    );
+    const workspaceId =
+      await this.webhookWorkspaceService.findWorkspaceByGitHubRepo(
+        repoFullName,
+      );
 
     if (!workspaceId) {
       this.logger.debug(`No workspace found for GitHub repo: ${repoFullName}`);
@@ -184,25 +194,28 @@ export class WebhooksService {
     const item = await this.upsertContextItem(workspaceId, transformed);
 
     // Queue embedding generation
-    await this.embeddingQueue.add('generate', {
+    await this.embeddingQueue.add("generate", {
       itemIds: [item.id],
       workspaceId,
     });
 
-    this.logger.log(`Processed PR ${payload.action}: ${payload.pull_request?.title}`);
+    this.logger.log(
+      `Processed PR ${payload.action}: ${payload.pull_request?.title}`,
+    );
   }
 
   private async handleIssue(payload: any): Promise<void> {
     const repoFullName = payload.repository?.full_name;
     if (!repoFullName) {
-      this.logger.warn('No repository full name in issue payload');
+      this.logger.warn("No repository full name in issue payload");
       return;
     }
 
     // Find workspace by repository
-    const workspaceId = await this.webhookWorkspaceService.findWorkspaceByGitHubRepo(
-      repoFullName,
-    );
+    const workspaceId =
+      await this.webhookWorkspaceService.findWorkspaceByGitHubRepo(
+        repoFullName,
+      );
 
     if (!workspaceId) {
       this.logger.debug(`No workspace found for GitHub repo: ${repoFullName}`);
@@ -219,25 +232,28 @@ export class WebhooksService {
     const item = await this.upsertContextItem(workspaceId, transformed);
 
     // Queue embedding generation
-    await this.embeddingQueue.add('generate', {
+    await this.embeddingQueue.add("generate", {
       itemIds: [item.id],
       workspaceId,
     });
 
-    this.logger.log(`Processed issue ${payload.action}: ${payload.issue?.title}`);
+    this.logger.log(
+      `Processed issue ${payload.action}: ${payload.issue?.title}`,
+    );
   }
 
   private async handlePush(payload: any): Promise<void> {
     const repoFullName = payload.repository?.full_name;
     if (!repoFullName) {
-      this.logger.warn('No repository full name in push payload');
+      this.logger.warn("No repository full name in push payload");
       return;
     }
 
     // Find workspace by repository
-    const workspaceId = await this.webhookWorkspaceService.findWorkspaceByGitHubRepo(
-      repoFullName,
-    );
+    const workspaceId =
+      await this.webhookWorkspaceService.findWorkspaceByGitHubRepo(
+        repoFullName,
+      );
 
     if (!workspaceId) {
       this.logger.debug(`No workspace found for GitHub repo: ${repoFullName}`);
@@ -250,7 +266,10 @@ export class WebhooksService {
 
     for (const commit of commits) {
       // Transform commit using GitHubTransformer
-      const transformed = GitHubTransformer.transformCommit(commit, repoFullName);
+      const transformed = GitHubTransformer.transformCommit(
+        commit,
+        repoFullName,
+      );
 
       // Upsert context item
       const item = await this.upsertContextItem(workspaceId, transformed);
@@ -259,25 +278,26 @@ export class WebhooksService {
 
     // Queue embedding generation for all commits
     if (itemIds.length > 0) {
-      await this.embeddingQueue.add('generate', {
+      await this.embeddingQueue.add("generate", {
         itemIds,
         workspaceId,
       });
     }
 
-    this.logger.log(`Processed push to ${payload.ref}: ${commits.length} commits`);
+    this.logger.log(
+      `Processed push to ${payload.ref}: ${commits.length} commits`,
+    );
   }
 
   private async handleSlackMessage(event: any, teamId: string): Promise<void> {
     if (!teamId) {
-      this.logger.warn('No team ID in Slack message event');
+      this.logger.warn("No team ID in Slack message event");
       return;
     }
 
     // Find workspace by team ID
-    const workspaceId = await this.webhookWorkspaceService.findWorkspaceBySlackTeam(
-      teamId,
-    );
+    const workspaceId =
+      await this.webhookWorkspaceService.findWorkspaceBySlackTeam(teamId);
 
     if (!workspaceId) {
       this.logger.debug(`No workspace found for Slack team: ${teamId}`);
@@ -299,7 +319,7 @@ export class WebhooksService {
     const item = await this.upsertContextItem(workspaceId, transformed);
 
     // Queue embedding generation
-    await this.embeddingQueue.add('generate', {
+    await this.embeddingQueue.add("generate", {
       itemIds: [item.id],
       workspaceId,
     });

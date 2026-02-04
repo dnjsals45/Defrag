@@ -1,5 +1,8 @@
-import { SourceType } from '../../database/entities/context-item.entity';
-import { SlackMessage, SlackChannel } from '../../oauth/providers/slack.service';
+import { SourceType } from "../../database/entities/context-item.entity";
+import {
+  SlackMessage,
+  SlackChannel,
+} from "../../oauth/providers/slack.service";
 
 export interface TransformedItem {
   externalId: string;
@@ -20,7 +23,7 @@ export class SlackTransformer {
   ): TransformedItem {
     const timestamp = parseFloat(message.ts);
     const date = new Date(timestamp * 1000);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = date.toISOString().split("T")[0];
 
     // Build content from message text and attachments
     const contentParts = [message.text];
@@ -34,7 +37,7 @@ export class SlackTransformer {
     // Build source URL if team domain is available
     let sourceUrl: string | null = null;
     if (teamDomain) {
-      const tsForUrl = message.ts.replace('.', '');
+      const tsForUrl = message.ts.replace(".", "");
       sourceUrl = `https://${teamDomain}.slack.com/archives/${channel.id}/p${tsForUrl}`;
     }
 
@@ -42,7 +45,7 @@ export class SlackTransformer {
       externalId: `slack:${channel.id}:${message.ts}`,
       sourceType: SourceType.SLACK_MESSAGE,
       title: `#${channel.name} - ${dateStr}`,
-      content: contentParts.join('\n\n'),
+      content: contentParts.join("\n\n"),
       sourceUrl,
       metadata: {
         channelId: channel.id,
@@ -52,7 +55,9 @@ export class SlackTransformer {
         threadTs: message.thread_ts,
         isThreadReply: !!message.thread_ts && message.thread_ts !== message.ts,
         replyCount: message.reply_count || 0,
-        reactions: message.reactions?.map((r) => ({ name: r.name, count: r.count })) || [],
+        reactions:
+          message.reactions?.map((r) => ({ name: r.name, count: r.count })) ||
+          [],
         hasFiles: (message.files?.length || 0) > 0,
         date: date.toISOString(),
       },
@@ -69,7 +74,7 @@ export class SlackTransformer {
   ): TransformedItem {
     const timestamp = parseFloat(parentMessage.ts);
     const date = new Date(timestamp * 1000);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = date.toISOString().split("T")[0];
 
     // Build content from parent and all replies
     const contentParts = [
@@ -81,7 +86,7 @@ export class SlackTransformer {
 
     let sourceUrl: string | null = null;
     if (teamDomain) {
-      const tsForUrl = parentMessage.ts.replace('.', '');
+      const tsForUrl = parentMessage.ts.replace(".", "");
       sourceUrl = `https://${teamDomain}.slack.com/archives/${channel.id}/p${tsForUrl}`;
     }
 
@@ -89,7 +94,7 @@ export class SlackTransformer {
       externalId: `slack:thread:${channel.id}:${parentMessage.ts}`,
       sourceType: SourceType.SLACK_MESSAGE,
       title: `#${channel.name} Thread - ${dateStr}`,
-      content: contentParts.join('\n\n'),
+      content: contentParts.join("\n\n"),
       sourceUrl,
       metadata: {
         channelId: channel.id,
@@ -101,7 +106,10 @@ export class SlackTransformer {
         date: date.toISOString(),
         isThread: true,
       },
-      importanceScore: SlackTransformer.calculateThreadImportance(parentMessage, replies),
+      importanceScore: SlackTransformer.calculateThreadImportance(
+        parentMessage,
+        replies,
+      ),
       createdAt: date,
     };
   }
@@ -110,7 +118,8 @@ export class SlackTransformer {
     let score = 0.3;
 
     // Reactions indicate importance
-    const totalReactions = message.reactions?.reduce((sum, r) => sum + r.count, 0) || 0;
+    const totalReactions =
+      message.reactions?.reduce((sum, r) => sum + r.count, 0) || 0;
     if (totalReactions > 10) score += 0.3;
     else if (totalReactions > 5) score += 0.2;
     else if (totalReactions > 0) score += 0.1;

@@ -3,17 +3,20 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { WorkspaceMember, MemberRole } from '../database/entities/workspace-member.entity';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  WorkspaceMember,
+  MemberRole,
+} from "../database/entities/workspace-member.entity";
 import {
   WorkspaceInvitation,
   InvitationStatus,
-} from '../database/entities/workspace-invitation.entity';
-import { UsersService } from '../users/users.service';
-import { InviteMemberDto } from './dto/invite-member.dto';
-import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+} from "../database/entities/workspace-invitation.entity";
+import { UsersService } from "../users/users.service";
+import { InviteMemberDto } from "./dto/invite-member.dto";
+import { UpdateMemberRoleDto } from "./dto/update-member-role.dto";
 
 @Injectable()
 export class MembersService {
@@ -28,7 +31,7 @@ export class MembersService {
   async findAllByWorkspace(workspaceId: string) {
     const members = await this.membersRepository.find({
       where: { workspaceId },
-      relations: ['user'],
+      relations: ["user"],
     });
 
     return members.map((member) => ({
@@ -40,24 +43,20 @@ export class MembersService {
     }));
   }
 
-  async invite(
-    workspaceId: string,
-    inviterId: string,
-    dto: InviteMemberDto,
-  ) {
+  async invite(workspaceId: string, inviterId: string, dto: InviteMemberDto) {
     // Check if inviter is admin
     const inviterMember = await this.membersRepository.findOne({
       where: { workspaceId, userId: inviterId },
     });
 
     if (!inviterMember || inviterMember.role !== MemberRole.ADMIN) {
-      throw new ForbiddenException('Only admins can invite members');
+      throw new ForbiddenException("Only admins can invite members");
     }
 
     // Find user by email
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     // Check if already a member
@@ -66,7 +65,7 @@ export class MembersService {
     });
 
     if (existingMember) {
-      throw new ConflictException('User is already a member');
+      throw new ConflictException("User is already a member");
     }
 
     // Check if there's already a pending invitation
@@ -79,7 +78,7 @@ export class MembersService {
     });
 
     if (existingInvitation) {
-      throw new ConflictException('User already has a pending invitation');
+      throw new ConflictException("User already has a pending invitation");
     }
 
     // Create invitation (expires in 7 days)
@@ -103,7 +102,7 @@ export class MembersService {
       invitation: {
         id: invitation.id,
         email: user.email,
-        status: 'pending',
+        status: "pending",
       },
     };
   }
@@ -119,7 +118,7 @@ export class MembersService {
     });
 
     if (!requesterMember || requesterMember.role !== MemberRole.ADMIN) {
-      throw new ForbiddenException('Only admins can change roles');
+      throw new ForbiddenException("Only admins can change roles");
     }
 
     const targetMember = await this.membersRepository.findOne({
@@ -127,7 +126,7 @@ export class MembersService {
     });
 
     if (!targetMember) {
-      throw new NotFoundException('Member not found');
+      throw new NotFoundException("Member not found");
     }
 
     targetMember.role = dto.role;
@@ -136,17 +135,13 @@ export class MembersService {
     return { success: true };
   }
 
-  async remove(
-    workspaceId: string,
-    requesterId: string,
-    targetUserId: string,
-  ) {
+  async remove(workspaceId: string, requesterId: string, targetUserId: string) {
     const requesterMember = await this.membersRepository.findOne({
       where: { workspaceId, userId: requesterId },
     });
 
     if (!requesterMember || requesterMember.role !== MemberRole.ADMIN) {
-      throw new ForbiddenException('Only admins can remove members');
+      throw new ForbiddenException("Only admins can remove members");
     }
 
     const targetMember = await this.membersRepository.findOne({
@@ -154,7 +149,7 @@ export class MembersService {
     });
 
     if (!targetMember) {
-      throw new NotFoundException('Member not found');
+      throw new NotFoundException("Member not found");
     }
 
     await this.membersRepository.softDelete(targetMember.id);

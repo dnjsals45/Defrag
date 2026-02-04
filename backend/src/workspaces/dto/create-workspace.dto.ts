@@ -1,5 +1,5 @@
-import { IsString, IsEnum, IsOptional, MaxLength } from 'class-validator';
-import { WorkspaceType } from '../../database/entities/workspace.entity';
+import { IsString, IsEnum, IsOptional, MaxLength } from "class-validator";
+import { WorkspaceType } from "../../database/entities/workspace.entity";
 
 export class CreateWorkspaceDto {
   @IsString()

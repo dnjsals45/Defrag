@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { firstValueFrom } from "rxjs";
 
 interface GoogleTokenResponse {
   access_token: string;
@@ -32,21 +32,24 @@ export class GoogleOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.clientId = this.configService.get('GOOGLE_CLIENT_ID') || '';
-    this.clientSecret = this.configService.get('GOOGLE_CLIENT_SECRET') || '';
-    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
-    this.callbackUrl = this.configService.get('GOOGLE_CALLBACK_URL') || `${backendUrl}/api/auth/google/callback`;
+    this.clientId = this.configService.get("GOOGLE_CLIENT_ID") || "";
+    this.clientSecret = this.configService.get("GOOGLE_CLIENT_SECRET") || "";
+    const backendUrl =
+      this.configService.get("BACKEND_URL") || "http://localhost:3001";
+    this.callbackUrl =
+      this.configService.get("GOOGLE_CALLBACK_URL") ||
+      `${backendUrl}/api/auth/google/callback`;
   }
 
   getAuthorizationUrl(state: string): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.callbackUrl,
-      response_type: 'code',
-      scope: 'openid email profile',
+      response_type: "code",
+      scope: "openid email profile",
       state,
-      access_type: 'offline',
-      prompt: 'consent',
+      access_type: "offline",
+      prompt: "consent",
     });
 
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -58,16 +61,16 @@ export class GoogleOAuthService {
       client_secret: this.clientSecret,
       code,
       redirect_uri: this.callbackUrl,
-      grant_type: 'authorization_code',
+      grant_type: "authorization_code",
     });
 
     const response = await firstValueFrom(
       this.httpService.post<GoogleTokenResponse>(
-        'https://oauth2.googleapis.com/token',
+        "https://oauth2.googleapis.com/token",
         params.toString(),
         {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            "Content-Type": "application/x-www-form-urlencoded",
           },
         },
       ),
@@ -79,7 +82,7 @@ export class GoogleOAuthService {
   async getUser(accessToken: string): Promise<GoogleUser> {
     const response = await firstValueFrom(
       this.httpService.get<GoogleUser>(
-        'https://www.googleapis.com/oauth2/v2/userinfo',
+        "https://www.googleapis.com/oauth2/v2/userinfo",
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,

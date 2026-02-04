@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Plus, Send, Trash2, MessageSquare, ExternalLink, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -34,7 +34,7 @@ interface Conversation {
   messages?: ConversationMessage[];
 }
 
-export default function ConversationsPage() {
+function ConversationsPageContent() {
   const { currentWorkspace } = useWorkspaceStore();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -348,18 +348,18 @@ export default function ConversationsPage() {
                               )
                               .slice(0, 3)
                               .map((source, index) => (
-                              <a
-                                key={`${source.id}-${index}`}
-                                href={source.sourceUrl || '#'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-xs text-gray-600 hover:text-blue-600"
-                              >
-                                <span>{getSourceIcon(source.sourceType)}</span>
-                                <span className="truncate flex-1">{source.title}</span>
-                                <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                              </a>
-                            ))}
+                                <a
+                                  key={`${source.id}-${index}`}
+                                  href={source.sourceUrl || '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 text-xs text-gray-600 hover:text-blue-600"
+                                >
+                                  <span>{getSourceIcon(source.sourceType)}</span>
+                                  <span className="truncate flex-1">{source.title}</span>
+                                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                </a>
+                              ))}
                           </div>
                         </div>
                       )}
@@ -410,5 +410,19 @@ export default function ConversationsPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function ConversationsPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      </AppLayout>
+    }>
+      <ConversationsPageContent />
+    </Suspense>
   );
 }

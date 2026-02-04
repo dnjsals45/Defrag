@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { firstValueFrom } from "rxjs";
 
 interface KakaoTokenResponse {
   access_token: string;
@@ -42,19 +42,22 @@ export class KakaoOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.clientId = this.configService.get('KAKAO_CLIENT_ID') || '';
-    this.clientSecret = this.configService.get('KAKAO_CLIENT_SECRET') || '';
-    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
-    this.callbackUrl = this.configService.get('KAKAO_CALLBACK_URL') || `${backendUrl}/api/auth/kakao/callback`;
+    this.clientId = this.configService.get("KAKAO_CLIENT_ID") || "";
+    this.clientSecret = this.configService.get("KAKAO_CLIENT_SECRET") || "";
+    const backendUrl =
+      this.configService.get("BACKEND_URL") || "http://localhost:3001";
+    this.callbackUrl =
+      this.configService.get("KAKAO_CALLBACK_URL") ||
+      `${backendUrl}/api/auth/kakao/callback`;
   }
 
   getAuthorizationUrl(state: string): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.callbackUrl,
-      response_type: 'code',
+      response_type: "code",
       state,
-      scope: 'profile_nickname profile_image account_email',
+      scope: "profile_nickname profile_image account_email",
     });
 
     return `https://kauth.kakao.com/oauth/authorize?${params.toString()}`;
@@ -62,7 +65,7 @@ export class KakaoOAuthService {
 
   async exchangeCodeForToken(code: string): Promise<KakaoTokenResponse> {
     const params = new URLSearchParams({
-      grant_type: 'authorization_code',
+      grant_type: "authorization_code",
       client_id: this.clientId,
       client_secret: this.clientSecret,
       redirect_uri: this.callbackUrl,
@@ -71,11 +74,11 @@ export class KakaoOAuthService {
 
     const response = await firstValueFrom(
       this.httpService.post<KakaoTokenResponse>(
-        'https://kauth.kakao.com/oauth/token',
+        "https://kauth.kakao.com/oauth/token",
         params.toString(),
         {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+            "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
           },
         },
       ),
@@ -86,15 +89,12 @@ export class KakaoOAuthService {
 
   async getUser(accessToken: string): Promise<KakaoUser> {
     const response = await firstValueFrom(
-      this.httpService.get<KakaoUser>(
-        'https://kapi.kakao.com/v2/user/me',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-          },
+      this.httpService.get<KakaoUser>("https://kapi.kakao.com/v2/user/me", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
         },
-      ),
+      }),
     );
 
     return response.data;

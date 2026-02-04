@@ -83,7 +83,7 @@ export function Sidebar() {
       await createWorkspace(trimmedName, newWorkspaceType);
       setShowCreateModal(false);
       setNewWorkspaceName('');
-    } catch (error: any) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       // 백엔드 에러 메시지 처리
       const message = error?.response?.data?.message || '워크스페이스 생성에 실패했습니다';
       setNameError(message);
@@ -188,26 +188,26 @@ export function Sidebar() {
             return true;
           })
           .map((item) => {
-          // /settings는 정확히 일치할 때만, 나머지는 하위 경로도 포함
-          const isActive = item.href === '/settings'
-            ? pathname === item.href
-            : (pathname === item.href || pathname.startsWith(item.href + '/'));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-800'
-              )}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="text-sm">{item.label}</span>
-            </Link>
-          );
-        })}
+            // /settings는 정확히 일치할 때만, 나머지는 하위 경로도 포함
+            const isActive = item.href === '/settings'
+              ? pathname === item.href
+              : (pathname === item.href || pathname.startsWith(item.href + '/'));
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+                  isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800'
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="text-sm">{item.label}</span>
+              </Link>
+            );
+          })}
       </nav>
 
       {/* User Section */}

@@ -1,17 +1,17 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { of, throwError } from 'rxjs';
-import { AxiosResponse } from 'axios';
-import { EmbeddingService } from './embedding.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { of, throwError } from "rxjs";
+import { AxiosResponse } from "axios";
+import { EmbeddingService } from "./embedding.service";
 
-describe('EmbeddingService', () => {
+describe("EmbeddingService", () => {
   let service: EmbeddingService;
   let httpService: HttpService;
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
-      if (key === 'OPENAI_API_KEY') return 'test-api-key';
+      if (key === "OPENAI_API_KEY") return "test-api-key";
       return null;
     }),
   };
@@ -34,52 +34,52 @@ describe('EmbeddingService', () => {
     jest.clearAllMocks();
   });
 
-  describe('generateEmbedding', () => {
-    it('should generate embedding for single text', async () => {
+  describe("generateEmbedding", () => {
+    it("should generate embedding for single text", async () => {
       const mockEmbedding = Array(1536).fill(0.1);
       const mockResponse: AxiosResponse = {
         data: {
-          object: 'list',
-          data: [{ object: 'embedding', embedding: mockEmbedding, index: 0 }],
-          model: 'text-embedding-3-small',
+          object: "list",
+          data: [{ object: "embedding", embedding: mockEmbedding, index: 0 }],
+          model: "text-embedding-3-small",
           usage: { prompt_tokens: 10, total_tokens: 10 },
         },
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
         config: {} as any,
       };
 
       mockHttpService.post.mockReturnValue(of(mockResponse));
 
-      const result = await service.generateEmbedding('Test text');
+      const result = await service.generateEmbedding("Test text");
 
       expect(result).toEqual(mockEmbedding);
       expect(result.length).toBe(1536);
       expect(mockHttpService.post).toHaveBeenCalledWith(
-        'https://api.openai.com/v1/embeddings',
+        "https://api.openai.com/v1/embeddings",
         expect.objectContaining({
-          input: ['Test text'],
-          model: 'text-embedding-3-small',
+          input: ["Test text"],
+          model: "text-embedding-3-small",
           dimensions: 1536,
         }),
         expect.objectContaining({
           headers: expect.objectContaining({
-            Authorization: 'Bearer test-api-key',
+            Authorization: "Bearer test-api-key",
           }),
         }),
       );
     });
 
-    it('should truncate long text', async () => {
-      const longText = 'a'.repeat(50000);
+    it("should truncate long text", async () => {
+      const longText = "a".repeat(50000);
       const mockEmbedding = Array(1536).fill(0.1);
       const mockResponse: AxiosResponse = {
         data: {
           data: [{ embedding: mockEmbedding, index: 0 }],
         },
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
         config: {} as any,
       };
@@ -94,8 +94,8 @@ describe('EmbeddingService', () => {
     });
   });
 
-  describe('generateEmbeddings', () => {
-    it('should generate embeddings for multiple texts', async () => {
+  describe("generateEmbeddings", () => {
+    it("should generate embeddings for multiple texts", async () => {
       const mockEmbeddings = [
         Array(1536).fill(0.1),
         Array(1536).fill(0.2),
@@ -110,7 +110,7 @@ describe('EmbeddingService', () => {
           ],
         },
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
         config: {} as any,
       };
@@ -118,20 +118,17 @@ describe('EmbeddingService', () => {
       mockHttpService.post.mockReturnValue(of(mockResponse));
 
       const result = await service.generateEmbeddings([
-        'Text 1',
-        'Text 2',
-        'Text 3',
+        "Text 1",
+        "Text 2",
+        "Text 3",
       ]);
 
       expect(result).toEqual(mockEmbeddings);
       expect(result.length).toBe(3);
     });
 
-    it('should return sorted embeddings by index', async () => {
-      const mockEmbeddings = [
-        Array(1536).fill(0.1),
-        Array(1536).fill(0.2),
-      ];
+    it("should return sorted embeddings by index", async () => {
+      const mockEmbeddings = [Array(1536).fill(0.1), Array(1536).fill(0.2)];
       const mockResponse: AxiosResponse = {
         data: {
           data: [
@@ -140,38 +137,38 @@ describe('EmbeddingService', () => {
           ],
         },
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
         config: {} as any,
       };
 
       mockHttpService.post.mockReturnValue(of(mockResponse));
 
-      const result = await service.generateEmbeddings(['Text 1', 'Text 2']);
+      const result = await service.generateEmbeddings(["Text 1", "Text 2"]);
 
       expect(result[0]).toEqual(mockEmbeddings[0]);
       expect(result[1]).toEqual(mockEmbeddings[1]);
     });
 
-    it('should return empty array for empty input', async () => {
+    it("should return empty array for empty input", async () => {
       const result = await service.generateEmbeddings([]);
       expect(result).toEqual([]);
       expect(mockHttpService.post).not.toHaveBeenCalled();
     });
 
-    it('should throw error for batch size over 100', async () => {
-      const texts = Array(101).fill('Test');
+    it("should throw error for batch size over 100", async () => {
+      const texts = Array(101).fill("Test");
       await expect(service.generateEmbeddings(texts)).rejects.toThrow(
-        'Maximum batch size is 100 texts per request',
+        "Maximum batch size is 100 texts per request",
       );
     });
   });
 
-  describe('retry logic', () => {
-    it('should retry on rate limit error (429)', async () => {
+  describe("retry logic", () => {
+    it("should retry on rate limit error (429)", async () => {
       const rateLimitError = {
         response: { status: 429 },
-        message: 'Rate limited',
+        message: "Rate limited",
       };
       const mockEmbedding = Array(1536).fill(0.1);
       const successResponse: AxiosResponse = {
@@ -179,7 +176,7 @@ describe('EmbeddingService', () => {
           data: [{ embedding: mockEmbedding, index: 0 }],
         },
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
         config: {} as any,
       };
@@ -188,16 +185,16 @@ describe('EmbeddingService', () => {
         .mockReturnValueOnce(throwError(() => rateLimitError))
         .mockReturnValueOnce(of(successResponse));
 
-      const result = await service.generateEmbedding('Test');
+      const result = await service.generateEmbedding("Test");
 
       expect(result).toEqual(mockEmbedding);
       expect(mockHttpService.post).toHaveBeenCalledTimes(2);
     });
 
-    it('should retry on server error (5xx)', async () => {
+    it("should retry on server error (5xx)", async () => {
       const serverError = {
         response: { status: 503 },
-        message: 'Service unavailable',
+        message: "Service unavailable",
       };
       const mockEmbedding = Array(1536).fill(0.1);
       const successResponse: AxiosResponse = {
@@ -205,7 +202,7 @@ describe('EmbeddingService', () => {
           data: [{ embedding: mockEmbedding, index: 0 }],
         },
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
         config: {} as any,
       };
@@ -214,20 +211,20 @@ describe('EmbeddingService', () => {
         .mockReturnValueOnce(throwError(() => serverError))
         .mockReturnValueOnce(of(successResponse));
 
-      const result = await service.generateEmbedding('Test');
+      const result = await service.generateEmbedding("Test");
 
       expect(result).toEqual(mockEmbedding);
     });
 
-    it('should not retry on client error (4xx except 429)', async () => {
+    it("should not retry on client error (4xx except 429)", async () => {
       const clientError = {
         response: { status: 400 },
-        message: 'Bad request',
+        message: "Bad request",
       };
 
       mockHttpService.post.mockReturnValue(throwError(() => clientError));
 
-      await expect(service.generateEmbedding('Test')).rejects.toEqual(
+      await expect(service.generateEmbedding("Test")).rejects.toEqual(
         clientError,
       );
       expect(mockHttpService.post).toHaveBeenCalledTimes(1);

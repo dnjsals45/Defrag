@@ -194,7 +194,7 @@ function ConnectionsPageContent() {
 
   const openRepoSelector = () => {
     const githubIntegration = getGitHubIntegration();
-    const currentRepos = githubIntegration?.config?.selectedRepos || [];
+    const currentRepos = (githubIntegration?.config?.selectedRepos as string[]) || [];
     setSelectedRepos(currentRepos);
     setPreviousRepos(currentRepos);
     setShowRepoSelector(true);
@@ -231,7 +231,7 @@ function ConnectionsPageContent() {
 
   const openChannelSelector = () => {
     const slackIntegration = getSlackIntegration();
-    const currentChannels = slackIntegration?.config?.selectedChannels || [];
+    const currentChannels = (slackIntegration?.config?.selectedChannels as string[]) || [];
     setSelectedChannels(currentChannels);
     setPreviousChannels(currentChannels);
     setShowChannelSelector(true);
@@ -268,7 +268,7 @@ function ConnectionsPageContent() {
 
   const openPageSelector = () => {
     const notionIntegration = getNotionIntegration();
-    const currentPages = notionIntegration?.config?.selectedPages || [];
+    const currentPages = (notionIntegration?.config?.selectedPages as string[]) || [];
     setSelectedPages(currentPages);
     setPreviousPages(currentPages);
     setShowPageSelector(true);
@@ -373,17 +373,17 @@ function ConnectionsPageContent() {
                               <div>
                                 {provider.id === 'github' && connected && (
                                   <p className="text-xs text-gray-500">
-                                    {getGitHubIntegration()?.config?.selectedRepos?.length || 0}개 레포지토리 선택됨
+                                    {(getGitHubIntegration()?.config?.selectedRepos as string[])?.length || 0}개 레포지토리 선택됨
                                   </p>
                                 )}
                                 {provider.id === 'slack' && connected && (
                                   <p className="text-xs text-gray-500">
-                                    {getSlackIntegration()?.config?.selectedChannels?.length || 0}개 채널 선택됨
+                                    {(getSlackIntegration()?.config?.selectedChannels as string[])?.length || 0}개 채널 선택됨
                                   </p>
                                 )}
                                 {provider.id === 'notion' && connected && (
                                   <p className="text-xs text-gray-500">
-                                    {getNotionIntegration()?.config?.selectedPages?.length || 0}개 페이지 선택됨
+                                    {(getNotionIntegration()?.config?.selectedPages as string[])?.length || 0}개 페이지 선택됨
                                   </p>
                                 )}
                               </div>
@@ -470,7 +470,7 @@ function ConnectionsPageContent() {
               <div className="flex-1 overflow-y-auto p-4">
                 {(() => {
                   const githubIntegration = getGitHubIntegration();
-                  const availableRepos: GitHubRepo[] = githubIntegration?.config?.availableRepos || [];
+                  const availableRepos: GitHubRepo[] = (githubIntegration?.config?.availableRepos as GitHubRepo[]) || [];
 
                   if (availableRepos.length === 0) {
                     return (
@@ -549,7 +549,7 @@ function ConnectionsPageContent() {
               <div className="flex-1 overflow-y-auto p-4">
                 {(() => {
                   const slackIntegration = getSlackIntegration();
-                  const availableChannels: SlackChannel[] = slackIntegration?.config?.availableChannels || [];
+                  const availableChannels: SlackChannel[] = (slackIntegration?.config?.availableChannels as SlackChannel[]) || [];
 
                   if (availableChannels.length === 0) {
                     return (
@@ -628,7 +628,7 @@ function ConnectionsPageContent() {
               <div className="flex-1 overflow-y-auto p-4">
                 {(() => {
                   const notionIntegration = getNotionIntegration();
-                  const availablePages: NotionPage[] = notionIntegration?.config?.availablePages || [];
+                  const availablePages: NotionPage[] = (notionIntegration?.config?.availablePages as NotionPage[]) || [];
 
                   if (availablePages.length === 0) {
                     return (

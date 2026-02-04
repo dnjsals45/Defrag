@@ -1,7 +1,7 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
-import { randomBytes } from 'crypto';
+import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import Redis from "ioredis";
+import { randomBytes } from "crypto";
 
 interface OAuthStateData {
   userId?: string; // Optional for social login (user not yet authenticated)
@@ -18,7 +18,8 @@ export class OAuthStateService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit() {
-    const redisUrl = this.configService.get('REDIS_URL') || 'redis://localhost:6379';
+    const redisUrl =
+      this.configService.get("REDIS_URL") || "redis://localhost:6379";
     this.redis = new Redis(redisUrl);
   }
 
@@ -27,7 +28,7 @@ export class OAuthStateService implements OnModuleInit, OnModuleDestroy {
   }
 
   async generateState(data: OAuthStateData): Promise<string> {
-    const state = randomBytes(32).toString('hex');
+    const state = randomBytes(32).toString("hex");
     const key = `oauth:state:${state}`;
 
     await this.redis.setex(key, this.STATE_TTL, JSON.stringify(data));

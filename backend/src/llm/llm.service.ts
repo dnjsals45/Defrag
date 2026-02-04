@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { firstValueFrom } from "rxjs";
 
 interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
@@ -32,7 +32,7 @@ interface ChatCompletionResponse {
 export class LLMService {
   private readonly logger = new Logger(LLMService.name);
   private readonly apiKey: string;
-  private readonly model = 'gpt-4o-mini';
+  private readonly model = "gpt-4o-mini";
   private readonly maxRetries = 3;
   private readonly baseDelay = 1000;
 
@@ -40,7 +40,7 @@ export class LLMService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.apiKey = this.configService.get('OPENAI_API_KEY') || '';
+    this.apiKey = this.configService.get("OPENAI_API_KEY") || "";
   }
 
   async generateAnswer(question: string, context: string): Promise<string> {
@@ -50,7 +50,7 @@ export class LLMService {
   async generateAnswerWithHistory(
     question: string,
     context: string,
-    history: { role: 'user' | 'assistant'; content: string }[],
+    history: { role: "user" | "assistant"; content: string }[],
   ): Promise<string> {
     const systemPrompt = `You are a helpful AI assistant that answers questions based on the provided context from the user's workspace.
 Your answers should be:
@@ -60,9 +60,7 @@ Your answers should be:
 
 If the context doesn't contain enough information to answer the question, say so honestly.`;
 
-    const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
-    ];
+    const messages: ChatMessage[] = [{ role: "system", content: systemPrompt }];
 
     // Add conversation history
     for (const msg of history) {
@@ -74,16 +72,19 @@ If the context doesn't contain enough information to answer the question, say so
       ? `Context from workspace:\n${context}\n\nQuestion: ${question}`
       : `Question: ${question}\n\n(No relevant context found in workspace)`;
 
-    messages.push({ role: 'user', content: userPrompt });
+    messages.push({ role: "user", content: userPrompt });
 
     return this.chatCompletion(messages);
   }
 
-  async chatCompletion(messages: ChatMessage[], retryCount = 0): Promise<string> {
+  async chatCompletion(
+    messages: ChatMessage[],
+    retryCount = 0,
+  ): Promise<string> {
     try {
       const response = await firstValueFrom(
         this.httpService.post<ChatCompletionResponse>(
-          'https://api.openai.com/v1/chat/completions',
+          "https://api.openai.com/v1/chat/completions",
           {
             model: this.model,
             messages,
@@ -92,18 +93,22 @@ If the context doesn't contain enough information to answer the question, say so
           },
           {
             headers: {
-              'Authorization': `Bearer ${this.apiKey}`,
-              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.apiKey}`,
+              "Content-Type": "application/json",
             },
           },
         ),
       );
 
-      return response.data.choices[0]?.message?.content || 'No response generated.';
+      return (
+        response.data.choices[0]?.message?.content || "No response generated."
+      );
     } catch (error) {
       if (this.isRetryableError(error) && retryCount < this.maxRetries) {
         const delay = this.baseDelay * Math.pow(2, retryCount);
-        this.logger.warn(`Retrying chat completion (attempt ${retryCount + 1}/${this.maxRetries})`);
+        this.logger.warn(
+          `Retrying chat completion (attempt ${retryCount + 1}/${this.maxRetries})`,
+        );
         await this.sleep(delay);
         return this.chatCompletion(messages, retryCount + 1);
       }
@@ -118,6 +123,6 @@ If the context doesn't contain enough information to answer the question, say so
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

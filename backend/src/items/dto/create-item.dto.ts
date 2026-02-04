@@ -1,4 +1,11 @@
-import { IsString, IsUrl, IsOptional, IsArray, ArrayMaxSize, ArrayMinSize } from 'class-validator';
+import {
+  IsString,
+  IsUrl,
+  IsOptional,
+  IsArray,
+  ArrayMaxSize,
+  ArrayMinSize,
+} from "class-validator";
 
 export class CreateItemDto {
   @IsArray()

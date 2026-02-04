@@ -1,21 +1,21 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue, Job } from 'bullmq';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
-import { WorkspaceIntegration } from '../database/entities/workspace-integration.entity';
-import { Provider } from '../database/entities/user-connection.entity';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue, Job } from "bullmq";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, In } from "typeorm";
+import { WorkspaceIntegration } from "../database/entities/workspace-integration.entity";
+import { Provider } from "../database/entities/user-connection.entity";
 
 export interface SyncOptions {
   providers?: Provider[];
-  syncType?: 'full' | 'incremental';
+  syncType?: "full" | "incremental";
   since?: string;
-  targetItems?: string[];  // 특정 항목만 동기화
+  targetItems?: string[]; // 특정 항목만 동기화
 }
 
 export interface SyncStatus {
   provider: Provider;
-  status: 'pending' | 'active' | 'completed' | 'failed';
+  status: "pending" | "active" | "completed" | "failed";
   progress?: Record<string, any>;
   error?: string;
   startedAt?: Date;
@@ -34,9 +34,9 @@ export class SyncService {
   private readonly logger = new Logger(SyncService.name);
 
   constructor(
-    @InjectQueue('github-sync') private readonly githubQueue: Queue,
-    @InjectQueue('slack-sync') private readonly slackQueue: Queue,
-    @InjectQueue('notion-sync') private readonly notionQueue: Queue,
+    @InjectQueue("github-sync") private readonly githubQueue: Queue,
+    @InjectQueue("slack-sync") private readonly slackQueue: Queue,
+    @InjectQueue("notion-sync") private readonly notionQueue: Queue,
     @InjectRepository(WorkspaceIntegration)
     private readonly integrationsRepository: Repository<WorkspaceIntegration>,
   ) {}
@@ -46,7 +46,7 @@ export class SyncService {
     userId: string,
     options: SyncOptions = {},
   ): Promise<{ jobIds: Record<Provider, string> }> {
-    const { providers, syncType = 'incremental', since, targetItems } = options;
+    const { providers, syncType = "incremental", since, targetItems } = options;
 
     // Get connected integrations for this workspace
     const integrations = await this.integrationsRepository.find({
@@ -63,14 +63,21 @@ export class SyncService {
     const jobIds: Record<string, string> = {};
 
     for (const provider of providersToSync) {
-      const jobId = await this.queueSyncJob(provider, workspaceId, userId, syncType, since, targetItems);
+      const jobId = await this.queueSyncJob(
+        provider,
+        workspaceId,
+        userId,
+        syncType,
+        since,
+        targetItems,
+      );
       if (jobId) {
         jobIds[provider] = jobId;
       }
     }
 
     this.logger.log(
-      `Triggered sync for workspace ${workspaceId}: ${Object.keys(jobIds).join(', ')}`,
+      `Triggered sync for workspace ${workspaceId}: ${Object.keys(jobIds).join(", ")}`,
     );
 
     return { jobIds: jobIds as Record<Provider, string> };
@@ -80,7 +87,7 @@ export class SyncService {
     provider: Provider,
     workspaceId: string,
     userId: string,
-    syncType: 'full' | 'incremental',
+    syncType: "full" | "incremental",
     since?: string,
     targetItems?: string[],
   ): Promise<string | null> {
@@ -89,7 +96,7 @@ export class SyncService {
       jobId: `${provider}-${workspaceId}-${Date.now()}`,
       attempts: 3,
       backoff: {
-        type: 'exponential' as const,
+        type: "exponential" as const,
         delay: 5000,
       },
       removeOnComplete: { age: 3600, count: 100 },
@@ -100,13 +107,13 @@ export class SyncService {
 
     switch (provider) {
       case Provider.GITHUB:
-        job = await this.githubQueue.add('sync', jobData, jobOptions);
+        job = await this.githubQueue.add("sync", jobData, jobOptions);
         break;
       case Provider.SLACK:
-        job = await this.slackQueue.add('sync', jobData, jobOptions);
+        job = await this.slackQueue.add("sync", jobData, jobOptions);
         break;
       case Provider.NOTION:
-        job = await this.notionQueue.add('sync', jobData, jobOptions);
+        job = await this.notionQueue.add("sync", jobData, jobOptions);
         break;
       default:
         this.logger.warn(`Unknown provider: ${provider}`);
@@ -121,27 +128,43 @@ export class SyncService {
     const connectedIntegrations = await this.integrationsRepository.find({
       where: { workspaceId },
     });
-    const connectedProviders = new Set(connectedIntegrations.map((i) => i.provider));
+    const connectedProviders = new Set(
+      connectedIntegrations.map((i) => i.provider),
+    );
 
     const statuses: SyncStatus[] = [];
 
     // Only check queues for connected integrations
     if (connectedProviders.has(Provider.GITHUB)) {
-      const githubStatus = await this.getQueueStatus(this.githubQueue, workspaceId, Provider.GITHUB);
+      const githubStatus = await this.getQueueStatus(
+        this.githubQueue,
+        workspaceId,
+        Provider.GITHUB,
+      );
       if (githubStatus) statuses.push(githubStatus);
     }
 
     if (connectedProviders.has(Provider.SLACK)) {
-      const slackStatus = await this.getQueueStatus(this.slackQueue, workspaceId, Provider.SLACK);
+      const slackStatus = await this.getQueueStatus(
+        this.slackQueue,
+        workspaceId,
+        Provider.SLACK,
+      );
       if (slackStatus) statuses.push(slackStatus);
     }
 
     if (connectedProviders.has(Provider.NOTION)) {
-      const notionStatus = await this.getQueueStatus(this.notionQueue, workspaceId, Provider.NOTION);
+      const notionStatus = await this.getQueueStatus(
+        this.notionQueue,
+        workspaceId,
+        Provider.NOTION,
+      );
       if (notionStatus) statuses.push(notionStatus);
     }
 
-    const isRunning = statuses.some((s) => s.status === 'active' || s.status === 'pending');
+    const isRunning = statuses.some(
+      (s) => s.status === "active" || s.status === "pending",
+    );
 
     return {
       workspaceId,
@@ -157,13 +180,15 @@ export class SyncService {
   ): Promise<SyncStatus | null> {
     // Get active jobs
     const activeJobs = await queue.getActive();
-    const activeJob = activeJobs.find((j) => j.data.workspaceId === workspaceId);
+    const activeJob = activeJobs.find(
+      (j) => j.data.workspaceId === workspaceId,
+    );
 
     if (activeJob) {
       const progress = activeJob.progress as Record<string, any> | undefined;
       return {
         provider,
-        status: 'active',
+        status: "active",
         progress: progress || undefined,
         startedAt: new Date(activeJob.processedOn || activeJob.timestamp),
       };
@@ -171,24 +196,28 @@ export class SyncService {
 
     // Check waiting jobs
     const waitingJobs = await queue.getWaiting();
-    const waitingJob = waitingJobs.find((j) => j.data.workspaceId === workspaceId);
+    const waitingJob = waitingJobs.find(
+      (j) => j.data.workspaceId === workspaceId,
+    );
 
     if (waitingJob) {
       return {
         provider,
-        status: 'pending',
+        status: "pending",
         startedAt: new Date(waitingJob.timestamp),
       };
     }
 
     // Check recently completed jobs
     const completedJobs = await queue.getCompleted(0, 10);
-    const completedJob = completedJobs.find((j) => j.data.workspaceId === workspaceId);
+    const completedJob = completedJobs.find(
+      (j) => j.data.workspaceId === workspaceId,
+    );
 
     if (completedJob) {
       return {
         provider,
-        status: 'completed',
+        status: "completed",
         startedAt: new Date(completedJob.processedOn || completedJob.timestamp),
         completedAt: new Date(completedJob.finishedOn || Date.now()),
       };
@@ -196,12 +225,14 @@ export class SyncService {
 
     // Check failed jobs
     const failedJobs = await queue.getFailed(0, 10);
-    const failedJob = failedJobs.find((j) => j.data.workspaceId === workspaceId);
+    const failedJob = failedJobs.find(
+      (j) => j.data.workspaceId === workspaceId,
+    );
 
     if (failedJob) {
       return {
         provider,
-        status: 'failed',
+        status: "failed",
         error: failedJob.failedReason,
         startedAt: new Date(failedJob.processedOn || failedJob.timestamp),
         completedAt: new Date(failedJob.finishedOn || Date.now()),

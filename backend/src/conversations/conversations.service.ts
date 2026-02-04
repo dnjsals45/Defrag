@@ -3,19 +3,19 @@ import {
   ForbiddenException,
   NotFoundException,
   Logger,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource } from "typeorm";
 import {
   Conversation,
   ConversationMessage,
   MessageRole,
-} from '../database/entities';
-import { WorkspacesService } from '../workspaces/workspaces.service';
-import { SearchService } from '../search/search.service';
-import { LLMService } from '../llm/llm.service';
-import { SendMessageDto } from './dto/send-message.dto';
-import { UpdateConversationDto } from './dto/update-conversation.dto';
+} from "../database/entities";
+import { WorkspacesService } from "../workspaces/workspaces.service";
+import { SearchService } from "../search/search.service";
+import { LLMService } from "../llm/llm.service";
+import { SendMessageDto } from "./dto/send-message.dto";
+import { UpdateConversationDto } from "./dto/update-conversation.dto";
 
 @Injectable()
 export class ConversationsService {
@@ -54,11 +54,11 @@ export class ConversationsService {
     const { page = 1, limit = 20 } = options;
 
     const [conversations, total] = await this.conversationRepository
-      .createQueryBuilder('conversation')
-      .where('conversation.workspace_id = :workspaceId', { workspaceId })
-      .andWhere('conversation.user_id = :userId', { userId })
-      .andWhere('conversation.deleted_at IS NULL')
-      .orderBy('conversation.updated_at', 'DESC')
+      .createQueryBuilder("conversation")
+      .where("conversation.workspace_id = :workspaceId", { workspaceId })
+      .andWhere("conversation.user_id = :userId", { userId })
+      .andWhere("conversation.deleted_at IS NULL")
+      .orderBy("conversation.updated_at", "DESC")
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
@@ -87,17 +87,18 @@ export class ConversationsService {
         workspaceId,
         userId,
       },
-      relations: ['messages'],
+      relations: ["messages"],
     });
 
     if (!conversation) {
-      throw new NotFoundException('Conversation not found');
+      throw new NotFoundException("Conversation not found");
     }
 
     // Sort messages by createdAt
     if (conversation.messages) {
       conversation.messages.sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
     }
 
@@ -112,7 +113,11 @@ export class ConversationsService {
   ) {
     await this.checkAccess(workspaceId, userId);
 
-    const conversation = await this.findOne(workspaceId, conversationId, userId);
+    const conversation = await this.findOne(
+      workspaceId,
+      conversationId,
+      userId,
+    );
 
     // 1. Save user message
     const userMessage = this.messageRepository.create({
@@ -130,7 +135,9 @@ export class ConversationsService {
 
     // Filter by score threshold (score = 1 - distance)
     // 한국어 텍스트의 경우 거리가 더 클 수 있으므로 0.25로 낮춤
-    const relevantResults = searchResults.results.filter((r: any) => r.score >= 0.25);
+    const relevantResults = searchResults.results.filter(
+      (r: any) => r.score >= 0.25,
+    );
 
     this.logger.debug(
       `Conversation ${conversationId}: ${searchResults.results.length} results found, ${relevantResults.length} above score threshold`,
@@ -142,11 +149,11 @@ export class ConversationsService {
         (r: any) =>
           `[${r.sourceType}] ${r.title} (관련도: ${(r.score * 100).toFixed(0)}%):\n${r.snippet}`,
       )
-      .join('\n\n---\n\n');
+      .join("\n\n---\n\n");
 
     // 4. Prepare conversation history (exclude the just-added user message since we pass it separately)
     const history = (conversation.messages || []).map((msg) => ({
-      role: msg.role as 'user' | 'assistant',
+      role: msg.role as "user" | "assistant",
       content: msg.content,
     }));
 
@@ -207,7 +214,11 @@ export class ConversationsService {
     userId: string,
     dto: UpdateConversationDto,
   ): Promise<Conversation> {
-    const conversation = await this.findOne(workspaceId, conversationId, userId);
+    const conversation = await this.findOne(
+      workspaceId,
+      conversationId,
+      userId,
+    );
 
     if (dto.title !== undefined) {
       conversation.title = dto.title;
@@ -231,13 +242,16 @@ export class ConversationsService {
     if (trimmed.length <= 50) {
       return trimmed;
     }
-    return trimmed.substring(0, 47) + '...';
+    return trimmed.substring(0, 47) + "...";
   }
 
   private async checkAccess(workspaceId: string, userId: string) {
-    const member = await this.workspacesService.checkAccess(workspaceId, userId);
+    const member = await this.workspacesService.checkAccess(
+      workspaceId,
+      userId,
+    );
     if (!member) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException("Access denied");
     }
     return member;
   }

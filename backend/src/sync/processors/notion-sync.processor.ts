@@ -1,20 +1,26 @@
-import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { Job, Queue } from 'bullmq';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { NotionOAuthService, NotionBlock } from '../../oauth/providers/notion.service';
-import { IntegrationsService } from '../../integrations/integrations.service';
-import { ContextItem, SourceType } from '../../database/entities/context-item.entity';
-import { Provider } from '../../database/entities/user-connection.entity';
-import { NotionTransformer } from '../transformers/notion.transformer';
+import { Processor, WorkerHost, InjectQueue } from "@nestjs/bullmq";
+import { Logger } from "@nestjs/common";
+import { Job, Queue } from "bullmq";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  NotionOAuthService,
+  NotionBlock,
+} from "../../oauth/providers/notion.service";
+import { IntegrationsService } from "../../integrations/integrations.service";
+import {
+  ContextItem,
+  SourceType,
+} from "../../database/entities/context-item.entity";
+import { Provider } from "../../database/entities/user-connection.entity";
+import { NotionTransformer } from "../transformers/notion.transformer";
 
 export interface NotionSyncJobData {
   workspaceId: string;
   userId: string;
-  syncType: 'full' | 'incremental';
+  syncType: "full" | "incremental";
   pageIds?: string[];
-  targetItems?: string[];  // 특정 페이지만 동기화
+  targetItems?: string[]; // 특정 페이지만 동기화
 }
 
 export interface NotionSyncResult {
@@ -22,7 +28,7 @@ export interface NotionSyncResult {
   errors: string[];
 }
 
-@Processor('notion-sync')
+@Processor("notion-sync")
 export class NotionSyncProcessor extends WorkerHost {
   private readonly logger = new Logger(NotionSyncProcessor.name);
   private readonly RATE_LIMIT_DELAY = 350; // Notion: 3 req/sec ≈ 333ms
@@ -33,7 +39,7 @@ export class NotionSyncProcessor extends WorkerHost {
     private readonly integrationsService: IntegrationsService,
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
-    @InjectQueue('embedding')
+    @InjectQueue("embedding")
     private readonly embeddingQueue: Queue,
   ) {
     super();
@@ -41,19 +47,22 @@ export class NotionSyncProcessor extends WorkerHost {
 
   async process(job: Job<NotionSyncJobData>): Promise<NotionSyncResult> {
     const { workspaceId, syncType, pageIds, targetItems } = job.data;
-    this.logger.log(`Starting Notion sync for workspace ${workspaceId} (${syncType})`);
+    this.logger.log(
+      `Starting Notion sync for workspace ${workspaceId} (${syncType})`,
+    );
 
     const result: NotionSyncResult = { itemsSynced: 0, errors: [] };
     this.syncedItemIds = [];
 
     try {
-      const accessToken = await this.integrationsService.getDecryptedAccessToken(
-        workspaceId,
-        Provider.NOTION,
-      );
+      const accessToken =
+        await this.integrationsService.getDecryptedAccessToken(
+          workspaceId,
+          Provider.NOTION,
+        );
 
       if (!accessToken) {
-        result.errors.push('Notion integration not found or token invalid');
+        result.errors.push("Notion integration not found or token invalid");
         return result;
       }
 
@@ -62,25 +71,33 @@ export class NotionSyncProcessor extends WorkerHost {
 
       if (targetItems && targetItems.length > 0) {
         selectedPageIds = targetItems;
-        this.logger.log(`Syncing specific pages: ${selectedPageIds.join(', ')}`);
+        this.logger.log(
+          `Syncing specific pages: ${selectedPageIds.join(", ")}`,
+        );
       } else {
-        selectedPageIds = pageIds || await this.integrationsService.getNotionSelectedPages(workspaceId);
+        selectedPageIds =
+          pageIds ||
+          (await this.integrationsService.getNotionSelectedPages(workspaceId));
       }
 
       if (!selectedPageIds || selectedPageIds.length === 0) {
-        result.errors.push('No pages selected for sync');
+        result.errors.push("No pages selected for sync");
         return result;
       }
 
       // Sync selected pages
-      await job.updateProgress({ phase: 'fetching_pages', count: selectedPageIds.length });
+      await job.updateProgress({
+        phase: "fetching_pages",
+        count: selectedPageIds.length,
+      });
 
       for (const pageId of selectedPageIds) {
         try {
           await this.syncPage(accessToken, pageId, workspaceId, job);
           await this.delay(this.RATE_LIMIT_DELAY);
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          const errorMsg =
+            error instanceof Error ? error.message : "Unknown error";
           this.logger.error(`Error syncing page ${pageId}: ${errorMsg}`);
           result.errors.push(`Page ${pageId}: ${errorMsg}`);
         }
@@ -91,14 +108,16 @@ export class NotionSyncProcessor extends WorkerHost {
 
       // Trigger embedding generation for all synced items
       if (this.syncedItemIds.length > 0) {
-        await this.embeddingQueue.add('generate', {
+        await this.embeddingQueue.add("generate", {
           itemIds: this.syncedItemIds,
           workspaceId,
         });
-        this.logger.log(`Queued embedding generation for ${this.syncedItemIds.length} items`);
+        this.logger.log(
+          `Queued embedding generation for ${this.syncedItemIds.length} items`,
+        );
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
       this.logger.error(`Notion sync failed: ${errorMsg}`);
       result.errors.push(errorMsg);
     }
@@ -122,7 +141,7 @@ export class NotionSyncProcessor extends WorkerHost {
       );
 
       await job.updateProgress({
-        phase: 'fetching_pages',
+        phase: "fetching_pages",
         count: pagesProcessed + pages.length,
       });
 
@@ -132,7 +151,8 @@ export class NotionSyncProcessor extends WorkerHost {
           pagesProcessed++;
           await this.delay(this.RATE_LIMIT_DELAY);
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          const errorMsg =
+            error instanceof Error ? error.message : "Unknown error";
           const title = NotionTransformer.extractPageTitle(page);
           this.logger.error(`Error syncing page "${title}": ${errorMsg}`);
           result.errors.push(`"${title}": ${errorMsg}`);
@@ -152,10 +172,12 @@ export class NotionSyncProcessor extends WorkerHost {
     existingPage?: any,
   ): Promise<void> {
     // Fetch page content if not provided
-    const page = existingPage || (await this.notionService.getPageContent(accessToken, pageId));
+    const page =
+      existingPage ||
+      (await this.notionService.getPageContent(accessToken, pageId));
 
     if (!page) {
-      throw new Error('Page not found or inaccessible');
+      throw new Error("Page not found or inaccessible");
     }
 
     // Fetch all blocks from the page
@@ -164,7 +186,7 @@ export class NotionSyncProcessor extends WorkerHost {
     if (job) {
       const title = NotionTransformer.extractPageTitle(page);
       await job.updateProgress({
-        phase: 'syncing_page',
+        phase: "syncing_page",
         pageTitle: title,
         blockCount: blocks.length,
       });
@@ -175,16 +197,16 @@ export class NotionSyncProcessor extends WorkerHost {
     await this.upsertItem(workspaceId, transformed);
   }
 
-  private async fetchAllBlocks(accessToken: string, pageId: string): Promise<NotionBlock[]> {
+  private async fetchAllBlocks(
+    accessToken: string,
+    pageId: string,
+  ): Promise<NotionBlock[]> {
     const allBlocks: NotionBlock[] = [];
     let cursor: string | undefined;
 
     while (true) {
-      const { blocks, hasMore, nextCursor } = await this.notionService.getPageBlocks(
-        accessToken,
-        pageId,
-        cursor,
-      );
+      const { blocks, hasMore, nextCursor } =
+        await this.notionService.getPageBlocks(accessToken, pageId, cursor);
 
       allBlocks.push(...blocks);
 
@@ -192,7 +214,10 @@ export class NotionSyncProcessor extends WorkerHost {
       for (const block of blocks) {
         if (block.has_children) {
           try {
-            const childBlocks = await this.fetchAllBlocks(accessToken, block.id);
+            const childBlocks = await this.fetchAllBlocks(
+              accessToken,
+              block.id,
+            );
             allBlocks.push(...childBlocks);
             await this.delay(this.RATE_LIMIT_DELAY);
           } catch (error) {

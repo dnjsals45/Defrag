@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { WorkspaceIntegration } from '../database/entities/workspace-integration.entity';
-import { Provider } from '../database/entities/user-connection.entity';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { WorkspaceIntegration } from "../database/entities/workspace-integration.entity";
+import { Provider } from "../database/entities/user-connection.entity";
 
 @Injectable()
 export class WebhookWorkspaceService {
@@ -20,8 +20,8 @@ export class WebhookWorkspaceService {
     repoFullName: string,
   ): Promise<string | null> {
     const integration = await this.workspaceIntegrationRepository
-      .createQueryBuilder('wi')
-      .where('wi.provider = :provider', {
+      .createQueryBuilder("wi")
+      .where("wi.provider = :provider", {
         provider: Provider.GITHUB,
       })
       .andWhere("wi.config->>'repoFullName' = :repoFullName", {
@@ -39,8 +39,8 @@ export class WebhookWorkspaceService {
    */
   async findWorkspaceBySlackTeam(teamId: string): Promise<string | null> {
     const integration = await this.workspaceIntegrationRepository
-      .createQueryBuilder('wi')
-      .where('wi.provider = :provider', {
+      .createQueryBuilder("wi")
+      .where("wi.provider = :provider", {
         provider: Provider.SLACK,
       })
       .andWhere("wi.config->>'teamId' = :teamId", { teamId })
@@ -58,8 +58,8 @@ export class WebhookWorkspaceService {
     notionWorkspaceId: string,
   ): Promise<string | null> {
     const integration = await this.workspaceIntegrationRepository
-      .createQueryBuilder('wi')
-      .where('wi.provider = :provider', {
+      .createQueryBuilder("wi")
+      .where("wi.provider = :provider", {
         provider: Provider.NOTION,
       })
       .andWhere("wi.config->>'workspaceId' = :workspaceId", {

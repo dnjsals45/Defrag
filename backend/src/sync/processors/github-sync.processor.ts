@@ -1,20 +1,26 @@
-import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { Job, Queue } from 'bullmq';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { GitHubOAuthService, GitHubFileContent } from '../../oauth/providers/github.service';
-import { IntegrationsService } from '../../integrations/integrations.service';
-import { ContextItem, SourceType } from '../../database/entities/context-item.entity';
-import { Provider } from '../../database/entities/user-connection.entity';
-import { GitHubTransformer } from '../transformers/github.transformer';
+import { Processor, WorkerHost, InjectQueue } from "@nestjs/bullmq";
+import { Logger } from "@nestjs/common";
+import { Job, Queue } from "bullmq";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  GitHubOAuthService,
+  GitHubFileContent,
+} from "../../oauth/providers/github.service";
+import { IntegrationsService } from "../../integrations/integrations.service";
+import {
+  ContextItem,
+  SourceType,
+} from "../../database/entities/context-item.entity";
+import { Provider } from "../../database/entities/user-connection.entity";
+import { GitHubTransformer } from "../transformers/github.transformer";
 
 export interface GitHubSyncJobData {
   workspaceId: string;
   userId: string;
-  syncType: 'full' | 'incremental';
+  syncType: "full" | "incremental";
   since?: string;
-  targetItems?: string[];  // 특정 레포지토리만 동기화
+  targetItems?: string[]; // 특정 레포지토리만 동기화
 }
 
 export interface GitHubSyncResult {
@@ -22,7 +28,7 @@ export interface GitHubSyncResult {
   errors: string[];
 }
 
-@Processor('github-sync')
+@Processor("github-sync")
 export class GitHubSyncProcessor extends WorkerHost {
   private readonly logger = new Logger(GitHubSyncProcessor.name);
   private syncedItemIds: string[] = [];
@@ -32,7 +38,7 @@ export class GitHubSyncProcessor extends WorkerHost {
     private readonly integrationsService: IntegrationsService,
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
-    @InjectQueue('embedding')
+    @InjectQueue("embedding")
     private readonly embeddingQueue: Queue,
   ) {
     super();
@@ -40,19 +46,22 @@ export class GitHubSyncProcessor extends WorkerHost {
 
   async process(job: Job<GitHubSyncJobData>): Promise<GitHubSyncResult> {
     const { workspaceId, syncType, since, targetItems } = job.data;
-    this.logger.log(`Starting GitHub sync for workspace ${workspaceId} (${syncType})`);
+    this.logger.log(
+      `Starting GitHub sync for workspace ${workspaceId} (${syncType})`,
+    );
 
     const result: GitHubSyncResult = { itemsSynced: 0, errors: [] };
     this.syncedItemIds = [];
 
     try {
-      const accessToken = await this.integrationsService.getDecryptedAccessToken(
-        workspaceId,
-        Provider.GITHUB,
-      );
+      const accessToken =
+        await this.integrationsService.getDecryptedAccessToken(
+          workspaceId,
+          Provider.GITHUB,
+        );
 
       if (!accessToken) {
-        result.errors.push('GitHub integration not found or token invalid');
+        result.errors.push("GitHub integration not found or token invalid");
         return result;
       }
 
@@ -62,30 +71,60 @@ export class GitHubSyncProcessor extends WorkerHost {
       if (targetItems && targetItems.length > 0) {
         // 특정 레포지토리만 동기화
         reposToSync = targetItems;
-        this.logger.log(`Syncing specific repos: ${reposToSync.join(', ')}`);
+        this.logger.log(`Syncing specific repos: ${reposToSync.join(", ")}`);
       } else {
         // 전체 선택된 레포지토리 동기화
-        const selectedRepos = await this.integrationsService.getGitHubSelectedRepos(workspaceId);
+        const selectedRepos =
+          await this.integrationsService.getGitHubSelectedRepos(workspaceId);
         if (!selectedRepos || selectedRepos.length === 0) {
-          result.errors.push('No repositories selected for sync');
+          result.errors.push("No repositories selected for sync");
           return result;
         }
         reposToSync = selectedRepos;
       }
 
       const repos = reposToSync.map((fullName) => ({ full_name: fullName }));
-      await job.updateProgress({ phase: 'fetching_repos', count: repos.length });
+      await job.updateProgress({
+        phase: "fetching_repos",
+        count: repos.length,
+      });
 
       // For each repo, fetch issues and PRs
       for (const repo of repos) {
         try {
-          await this.syncRepoIssues(accessToken, repo.full_name, workspaceId, since, job);
-          await this.syncRepoPRs(accessToken, repo.full_name, workspaceId, since, job);
-          await this.syncRepoCommits(accessToken, repo.full_name, workspaceId, since, job);
-          await this.syncRepoDocs(accessToken, repo.full_name, workspaceId, job);
+          await this.syncRepoIssues(
+            accessToken,
+            repo.full_name,
+            workspaceId,
+            since,
+            job,
+          );
+          await this.syncRepoPRs(
+            accessToken,
+            repo.full_name,
+            workspaceId,
+            since,
+            job,
+          );
+          await this.syncRepoCommits(
+            accessToken,
+            repo.full_name,
+            workspaceId,
+            since,
+            job,
+          );
+          await this.syncRepoDocs(
+            accessToken,
+            repo.full_name,
+            workspaceId,
+            job,
+          );
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.error(`Error syncing repo ${repo.full_name}: ${errorMsg}`);
+          const errorMsg =
+            error instanceof Error ? error.message : "Unknown error";
+          this.logger.error(
+            `Error syncing repo ${repo.full_name}: ${errorMsg}`,
+          );
           result.errors.push(`${repo.full_name}: ${errorMsg}`);
         }
       }
@@ -95,14 +134,16 @@ export class GitHubSyncProcessor extends WorkerHost {
 
       // Trigger embedding generation for all synced items
       if (this.syncedItemIds.length > 0) {
-        await this.embeddingQueue.add('generate', {
+        await this.embeddingQueue.add("generate", {
           itemIds: this.syncedItemIds,
           workspaceId,
         });
-        this.logger.log(`Queued embedding generation for ${this.syncedItemIds.length} items`);
+        this.logger.log(
+          `Queued embedding generation for ${this.syncedItemIds.length} items`,
+        );
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
       this.logger.error(`GitHub sync failed: ${errorMsg}`);
       result.errors.push(errorMsg);
     }
@@ -110,19 +151,31 @@ export class GitHubSyncProcessor extends WorkerHost {
     return result;
   }
 
-  private async fetchAllRepos(accessToken: string, job: Job): Promise<{ full_name: string }[]> {
+  private async fetchAllRepos(
+    accessToken: string,
+    job: Job,
+  ): Promise<{ full_name: string }[]> {
     const repos: { full_name: string }[] = [];
     let page = 1;
     const perPage = 30;
 
     while (true) {
-      const { data, headers } = await this.githubService.getRepos(accessToken, { page, perPage });
+      const { data, headers } = await this.githubService.getRepos(accessToken, {
+        page,
+        perPage,
+      });
 
       repos.push(...data);
-      await job.updateProgress({ phase: 'fetching_repos', count: repos.length });
+      await job.updateProgress({
+        phase: "fetching_repos",
+        count: repos.length,
+      });
 
       // Check rate limit
-      const remaining = parseInt(headers['x-ratelimit-remaining'] || '1000', 10);
+      const remaining = parseInt(
+        headers["x-ratelimit-remaining"] || "1000",
+        10,
+      );
       if (remaining < 100) {
         this.logger.warn(`GitHub rate limit low: ${remaining} remaining`);
         await this.delay(1000);
@@ -150,27 +203,33 @@ export class GitHubSyncProcessor extends WorkerHost {
       const { data: issues, headers } = await this.githubService.getIssues(
         accessToken,
         repoFullName,
-        { page, perPage, state: 'all', since },
+        { page, perPage, state: "all", since },
       );
 
       // Filter out pull requests (GitHub API returns PRs in issues endpoint)
       const actualIssues = issues.filter((issue) => !issue.pull_request);
 
       for (const issue of actualIssues) {
-        const transformed = GitHubTransformer.transformIssue(issue, repoFullName);
+        const transformed = GitHubTransformer.transformIssue(
+          issue,
+          repoFullName,
+        );
         await this.upsertItem(workspaceId, transformed);
       }
 
       if (job) {
         await job.updateProgress({
-          phase: 'syncing_issues',
+          phase: "syncing_issues",
           repo: repoFullName,
           count: page * perPage,
         });
       }
 
       // Rate limit handling
-      const remaining = parseInt(headers['x-ratelimit-remaining'] || '1000', 10);
+      const remaining = parseInt(
+        headers["x-ratelimit-remaining"] || "1000",
+        10,
+      );
       if (remaining < 100) {
         await this.delay(2000);
       }
@@ -194,7 +253,7 @@ export class GitHubSyncProcessor extends WorkerHost {
       const { data: prs, headers } = await this.githubService.getPullRequests(
         accessToken,
         repoFullName,
-        { page, perPage, state: 'all' },
+        { page, perPage, state: "all" },
       );
 
       // Filter by since date if provided
@@ -203,19 +262,25 @@ export class GitHubSyncProcessor extends WorkerHost {
         : prs;
 
       for (const pr of filteredPRs) {
-        const transformed = GitHubTransformer.transformPullRequest(pr, repoFullName);
+        const transformed = GitHubTransformer.transformPullRequest(
+          pr,
+          repoFullName,
+        );
         await this.upsertItem(workspaceId, transformed);
       }
 
       if (job) {
         await job.updateProgress({
-          phase: 'syncing_prs',
+          phase: "syncing_prs",
           repo: repoFullName,
           count: page * perPage,
         });
       }
 
-      const remaining = parseInt(headers['x-ratelimit-remaining'] || '1000', 10);
+      const remaining = parseInt(
+        headers["x-ratelimit-remaining"] || "1000",
+        10,
+      );
       if (remaining < 100) {
         await this.delay(2000);
       }
@@ -244,19 +309,25 @@ export class GitHubSyncProcessor extends WorkerHost {
       );
 
       for (const commit of commits) {
-        const transformed = GitHubTransformer.transformCommit(commit, repoFullName);
+        const transformed = GitHubTransformer.transformCommit(
+          commit,
+          repoFullName,
+        );
         await this.upsertItem(workspaceId, transformed);
       }
 
       if (job) {
         await job.updateProgress({
-          phase: 'syncing_commits',
+          phase: "syncing_commits",
           repo: repoFullName,
           count: page * perPage,
         });
       }
 
-      const remaining = parseInt(headers['x-ratelimit-remaining'] || '1000', 10);
+      const remaining = parseInt(
+        headers["x-ratelimit-remaining"] || "1000",
+        10,
+      );
       if (remaining < 100) {
         await this.delay(2000);
       }
@@ -275,14 +346,22 @@ export class GitHubSyncProcessor extends WorkerHost {
     const docsToSync: GitHubFileContent[] = [];
 
     // 1. Fetch README.md from root
-    const readme = await this.githubService.getFileContent(accessToken, repoFullName, 'README.md');
+    const readme = await this.githubService.getFileContent(
+      accessToken,
+      repoFullName,
+      "README.md",
+    );
     if (readme) {
       docsToSync.push(readme);
     }
 
     // Also try readme.md (lowercase)
     if (!readme) {
-      const readmeLower = await this.githubService.getFileContent(accessToken, repoFullName, 'readme.md');
+      const readmeLower = await this.githubService.getFileContent(
+        accessToken,
+        repoFullName,
+        "readme.md",
+      );
       if (readmeLower) {
         docsToSync.push(readmeLower);
       }
@@ -290,9 +369,17 @@ export class GitHubSyncProcessor extends WorkerHost {
 
     // 2. Fetch markdown files from docs/ folder
     try {
-      const docsFiles = await this.githubService.getMarkdownFiles(accessToken, repoFullName, 'docs');
+      const docsFiles = await this.githubService.getMarkdownFiles(
+        accessToken,
+        repoFullName,
+        "docs",
+      );
       for (const file of docsFiles) {
-        const fileContent = await this.githubService.getFileContent(accessToken, repoFullName, file.path);
+        const fileContent = await this.githubService.getFileContent(
+          accessToken,
+          repoFullName,
+          file.path,
+        );
         if (fileContent) {
           docsToSync.push(fileContent);
         }
@@ -304,13 +391,16 @@ export class GitHubSyncProcessor extends WorkerHost {
 
     // 3. Transform and save documents
     for (const doc of docsToSync) {
-      const transformed = GitHubTransformer.transformDocument(doc, repoFullName);
+      const transformed = GitHubTransformer.transformDocument(
+        doc,
+        repoFullName,
+      );
       await this.upsertItem(workspaceId, transformed);
     }
 
     if (job && docsToSync.length > 0) {
       await job.updateProgress({
-        phase: 'syncing_docs',
+        phase: "syncing_docs",
         repo: repoFullName,
         count: docsToSync.length,
       });

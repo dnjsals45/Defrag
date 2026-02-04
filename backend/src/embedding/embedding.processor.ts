@@ -1,11 +1,11 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ContextItem } from '../database/entities/context-item.entity';
-import { VectorData } from '../database/entities/vector-data.entity';
-import { EmbeddingService } from './embedding.service';
+import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Logger } from "@nestjs/common";
+import { Job } from "bullmq";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { ContextItem } from "../database/entities/context-item.entity";
+import { VectorData } from "../database/entities/vector-data.entity";
+import { EmbeddingService } from "./embedding.service";
 
 export interface EmbeddingJobData {
   itemIds: string[];
@@ -19,7 +19,7 @@ export interface EmbeddingResult {
   errors: string[];
 }
 
-@Processor('embedding')
+@Processor("embedding")
 export class EmbeddingProcessor extends WorkerHost {
   private readonly logger = new Logger(EmbeddingProcessor.name);
   private readonly BATCH_SIZE = 20;
@@ -53,7 +53,9 @@ export class EmbeddingProcessor extends WorkerHost {
       // Process items in batches
       for (let i = 0; i < itemIds.length; i += this.BATCH_SIZE) {
         const batch = itemIds.slice(i, i + this.BATCH_SIZE);
-        this.logger.debug(`Processing batch ${i / this.BATCH_SIZE + 1} of ${Math.ceil(itemIds.length / this.BATCH_SIZE)}`);
+        this.logger.debug(
+          `Processing batch ${i / this.BATCH_SIZE + 1} of ${Math.ceil(itemIds.length / this.BATCH_SIZE)}`,
+        );
 
         // Process each item in the batch
         for (const itemId of batch) {
@@ -66,13 +68,16 @@ export class EmbeddingProcessor extends WorkerHost {
             }
           } catch (error) {
             result.failedCount++;
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            const errorMsg =
+              error instanceof Error ? error.message : "Unknown error";
             this.logger.error(`Failed to process item ${itemId}: ${errorMsg}`);
             result.errors.push(`Item ${itemId}: ${errorMsg}`);
           }
 
           // Update job progress
-          const progress = Math.floor(((i + batch.indexOf(itemId) + 1) / itemIds.length) * 100);
+          const progress = Math.floor(
+            ((i + batch.indexOf(itemId) + 1) / itemIds.length) * 100,
+          );
           await job.updateProgress({
             processed: result.processedCount,
             skipped: result.skippedCount,
@@ -92,7 +97,7 @@ export class EmbeddingProcessor extends WorkerHost {
         `Embedding generation completed: ${result.processedCount} processed, ${result.skippedCount} skipped, ${result.failedCount} failed`,
       );
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
       this.logger.error(`Embedding job failed: ${errorMsg}`);
       result.errors.push(`Job failure: ${errorMsg}`);
     }
@@ -100,14 +105,19 @@ export class EmbeddingProcessor extends WorkerHost {
     return result;
   }
 
-  private async processItem(itemId: string, workspaceId: string): Promise<boolean> {
+  private async processItem(
+    itemId: string,
+    workspaceId: string,
+  ): Promise<boolean> {
     // Check if embedding already exists
     const existingVectors = await this.vectorRepository.find({
       where: { itemId },
     });
 
     if (existingVectors.length > 0) {
-      this.logger.debug(`Item ${itemId} already has ${existingVectors.length} embedding(s), skipping`);
+      this.logger.debug(
+        `Item ${itemId} already has ${existingVectors.length} embedding(s), skipping`,
+      );
       return false; // Skipped
     }
 
@@ -124,7 +134,7 @@ export class EmbeddingProcessor extends WorkerHost {
     }
 
     // Generate text for embedding (combine title and content)
-    const fullText = [item.title, item.content].filter(Boolean).join('\n\n');
+    const fullText = [item.title, item.content].filter(Boolean).join("\n\n");
 
     if (!fullText.trim()) {
       this.logger.warn(`Item ${itemId} has no content to embed, skipping`);
@@ -146,7 +156,7 @@ export class EmbeddingProcessor extends WorkerHost {
           itemId,
           chunkIndex: i,
           chunkContent: chunk,
-          embedding: `[${embedding.join(',')}]`,
+          embedding: `[${embedding.join(",")}]`,
         }),
       );
 
@@ -156,7 +166,9 @@ export class EmbeddingProcessor extends WorkerHost {
       }
     }
 
-    this.logger.debug(`Successfully generated and stored ${chunks.length} embedding(s) for item ${itemId}`);
+    this.logger.debug(
+      `Successfully generated and stored ${chunks.length} embedding(s) for item ${itemId}`,
+    );
     return true; // Processed
   }
 
@@ -179,8 +191,14 @@ export class EmbeddingProcessor extends WorkerHost {
       // If this is not the last chunk, try to find a good break point
       if (endIndex < text.length) {
         // Look for sentence boundaries (. ! ? or newline) near the end
-        const searchStart = Math.max(startIndex + this.CHUNK_SIZE - 100, startIndex);
-        const searchEnd = Math.min(startIndex + this.CHUNK_SIZE + 50, text.length);
+        const searchStart = Math.max(
+          startIndex + this.CHUNK_SIZE - 100,
+          startIndex,
+        );
+        const searchEnd = Math.min(
+          startIndex + this.CHUNK_SIZE + 50,
+          text.length,
+        );
         const searchText = text.slice(searchStart, searchEnd);
 
         // Find the last sentence boundary in the search range
@@ -206,7 +224,6 @@ export class EmbeddingProcessor extends WorkerHost {
 
     return chunks;
   }
-
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));

@@ -8,46 +8,46 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
-} from 'typeorm';
-import { User } from './user.entity';
-import { WorkspaceMember } from './workspace-member.entity';
-import { WorkspaceIntegration } from './workspace-integration.entity';
-import { ContextItem } from './context-item.entity';
+} from "typeorm";
+import { User } from "./user.entity";
+import { WorkspaceMember } from "./workspace-member.entity";
+import { WorkspaceIntegration } from "./workspace-integration.entity";
+import { ContextItem } from "./context-item.entity";
 
 export enum WorkspaceType {
-  PERSONAL = 'personal',
-  TEAM = 'team',
+  PERSONAL = "personal",
+  TEAM = "team",
 }
 
-@Entity('workspace')
+@Entity("workspace")
 export class Workspace {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
+  @PrimaryGeneratedColumn("increment", { type: "bigint" })
   id: string;
 
-  @Column({ name: 'owner_id', type: 'bigint' })
+  @Column({ name: "owner_id", type: "bigint" })
   ownerId: string;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ type: "varchar", length: 100 })
   name: string;
 
   @Column({
-    type: 'varchar',
+    type: "varchar",
     length: 20,
     default: WorkspaceType.PERSONAL,
   })
   type: WorkspaceType;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 
-  @DeleteDateColumn({ name: 'deleted_at' })
+  @DeleteDateColumn({ name: "deleted_at" })
   deletedAt: Date | null;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'owner_id' })
+  @JoinColumn({ name: "owner_id" })
   owner: User;
 
   @OneToMany(() => WorkspaceMember, (member) => member.workspace)

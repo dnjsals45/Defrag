@@ -32,7 +32,7 @@ export interface Connection {
 export interface Integration {
   provider: 'github' | 'slack' | 'notion';
   connected: boolean;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   connectedAt?: string;
 }
 

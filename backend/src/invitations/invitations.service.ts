@@ -3,14 +3,17 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, LessThan } from "typeorm";
 import {
   WorkspaceInvitation,
   InvitationStatus,
-} from '../database/entities/workspace-invitation.entity';
-import { WorkspaceMember, MemberRole } from '../database/entities/workspace-member.entity';
+} from "../database/entities/workspace-invitation.entity";
+import {
+  WorkspaceMember,
+  MemberRole,
+} from "../database/entities/workspace-member.entity";
 
 @Injectable()
 export class InvitationsService {
@@ -26,11 +29,9 @@ export class InvitationsService {
     await this.markExpiredInvitations();
 
     const invitations = await this.invitationsRepository.find({
-      where: [
-        { inviteeId: userId, status: InvitationStatus.PENDING },
-      ],
-      relations: ['workspace', 'inviter'],
-      order: { createdAt: 'DESC' },
+      where: [{ inviteeId: userId, status: InvitationStatus.PENDING }],
+      relations: ["workspace", "inviter"],
+      order: { createdAt: "DESC" },
     });
 
     return invitations.map((inv) => ({
@@ -56,25 +57,27 @@ export class InvitationsService {
   async accept(invitationId: string, userId: string) {
     const invitation = await this.invitationsRepository.findOne({
       where: { id: invitationId },
-      relations: ['workspace'],
+      relations: ["workspace"],
     });
 
     if (!invitation) {
-      throw new NotFoundException('Invitation not found');
+      throw new NotFoundException("Invitation not found");
     }
 
     if (invitation.inviteeId !== userId) {
-      throw new ForbiddenException('This invitation is not for you');
+      throw new ForbiddenException("This invitation is not for you");
     }
 
     if (invitation.status !== InvitationStatus.PENDING) {
-      throw new BadRequestException(`Invitation is already ${invitation.status}`);
+      throw new BadRequestException(
+        `Invitation is already ${invitation.status}`,
+      );
     }
 
     if (new Date() > invitation.expiresAt) {
       invitation.status = InvitationStatus.EXPIRED;
       await this.invitationsRepository.save(invitation);
-      throw new BadRequestException('Invitation has expired');
+      throw new BadRequestException("Invitation has expired");
     }
 
     // Check if already a member
@@ -83,7 +86,9 @@ export class InvitationsService {
     });
 
     if (existingMember) {
-      throw new BadRequestException('You are already a member of this workspace');
+      throw new BadRequestException(
+        "You are already a member of this workspace",
+      );
     }
 
     // Create membership
@@ -114,15 +119,17 @@ export class InvitationsService {
     });
 
     if (!invitation) {
-      throw new NotFoundException('Invitation not found');
+      throw new NotFoundException("Invitation not found");
     }
 
     if (invitation.inviteeId !== userId) {
-      throw new ForbiddenException('This invitation is not for you');
+      throw new ForbiddenException("This invitation is not for you");
     }
 
     if (invitation.status !== InvitationStatus.PENDING) {
-      throw new BadRequestException(`Invitation is already ${invitation.status}`);
+      throw new BadRequestException(
+        `Invitation is already ${invitation.status}`,
+      );
     }
 
     invitation.status = InvitationStatus.REJECTED;

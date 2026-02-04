@@ -13,7 +13,7 @@ interface SyncStatusProps {
 interface SyncJob {
   provider: string;
   status: 'pending' | 'active' | 'completed' | 'failed';
-  progress?: Record<string, any>;
+  progress?: Record<string, unknown>;
   error?: string;
   startedAt?: string;
   completedAt?: string;
@@ -81,7 +81,7 @@ export function SyncStatus({ workspaceId, refreshInterval = 5000 }: SyncStatusPr
   if (!syncStatus || syncStatus.jobs.length === 0) {
     return (
       <div className="text-sm text-gray-500 py-4">
-        No sync jobs found. Click "Sync Now" to start syncing your connected services.
+        No sync jobs found. Click &quot;Sync Now&quot; to start syncing your connected services.
       </div>
     );
   }

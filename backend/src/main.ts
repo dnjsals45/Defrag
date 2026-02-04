@@ -1,17 +1,17 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Global prefix
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix("api");
 
   // CORS - supports multiple origins via comma-separated CORS_ORIGINS env var
   const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
-    : [process.env.FRONTEND_URL || 'http://localhost:3000'];
+    ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+    : [process.env.FRONTEND_URL || "http://localhost:3000"];
 
   app.enableCors({
     origin: (
@@ -23,11 +23,11 @@ async function bootstrap() {
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
 
   // Validation

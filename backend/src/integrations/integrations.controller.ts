@@ -10,19 +10,22 @@ import {
   Request,
   Res,
   BadRequestException,
-} from '@nestjs/common';
-import { Response } from 'express';
-import { ConfigService } from '@nestjs/config';
-import { IntegrationsService } from './integrations.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { Provider } from '../database/entities/user-connection.entity';
-import { UpdateIntegrationConfigDto } from './dto/update-integration-config.dto';
-import { OAuthStateService } from '../oauth/oauth-state.service';
-import { GitHubOAuthService } from '../oauth/providers/github.service';
-import { SlackOAuthService, SlackChannel } from '../oauth/providers/slack.service';
-import { NotionOAuthService } from '../oauth/providers/notion.service';
+} from "@nestjs/common";
+import { Response } from "express";
+import { ConfigService } from "@nestjs/config";
+import { IntegrationsService } from "./integrations.service";
+import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import { Provider } from "../database/entities/user-connection.entity";
+import { UpdateIntegrationConfigDto } from "./dto/update-integration-config.dto";
+import { OAuthStateService } from "../oauth/oauth-state.service";
+import { GitHubOAuthService } from "../oauth/providers/github.service";
+import {
+  SlackOAuthService,
+  SlackChannel,
+} from "../oauth/providers/slack.service";
+import { NotionOAuthService } from "../oauth/providers/notion.service";
 
-@Controller('workspaces/:workspaceId/integrations')
+@Controller("workspaces/:workspaceId/integrations")
 @UseGuards(JwtAuthGuard)
 export class IntegrationsController {
   constructor(
@@ -32,12 +35,12 @@ export class IntegrationsController {
     private readonly githubOAuth: GitHubOAuthService,
     private readonly slackOAuth: SlackOAuthService,
     private readonly notionOAuth: NotionOAuthService,
-  ) { }
+  ) {}
 
   @Get()
   async findAll(
     @Request() req: any,
-    @Param('workspaceId') workspaceId: string,
+    @Param("workspaceId") workspaceId: string,
   ) {
     const integrations = await this.integrationsService.findAllByWorkspace(
       workspaceId,
@@ -46,11 +49,11 @@ export class IntegrationsController {
     return { integrations };
   }
 
-  @Get(':provider/auth')
+  @Get(":provider/auth")
   async startAuth(
     @Request() req: any,
-    @Param('workspaceId') workspaceId: string,
-    @Param('provider') provider: Provider,
+    @Param("workspaceId") workspaceId: string,
+    @Param("provider") provider: Provider,
     @Res() res: Response,
   ) {
     // Verify user has access to workspace
@@ -75,24 +78,24 @@ export class IntegrationsController {
         authUrl = this.notionOAuth.getAuthorizationUrl(state);
         break;
       default:
-        throw new BadRequestException('Invalid provider');
+        throw new BadRequestException("Invalid provider");
     }
 
     return res.redirect(authUrl);
   }
 
-  @Get(':provider/callback')
+  @Get(":provider/callback")
   async handleCallback(
-    @Param('workspaceId') workspaceId: string,
-    @Param('provider') provider: Provider,
-    @Query('code') code: string,
-    @Query('state') state: string,
-    @Query('error') error: string,
-    @Query('installation_id') installationId: string,
-    @Query('setup_action') setupAction: string,
+    @Param("workspaceId") workspaceId: string,
+    @Param("provider") provider: Provider,
+    @Query("code") code: string,
+    @Query("state") state: string,
+    @Query("error") error: string,
+    @Query("installation_id") installationId: string,
+    @Query("setup_action") setupAction: string,
     @Res() res: Response,
   ) {
-    const frontendUrl = this.configService.get('FRONTEND_URL');
+    const frontendUrl = this.configService.get("FRONTEND_URL");
     const redirectBase = `${frontendUrl}/settings/connections`;
 
     if (error) {
@@ -109,7 +112,10 @@ export class IntegrationsController {
       return res.redirect(`${redirectBase}?error=invalid_state`);
     }
 
-    if (stateData.provider !== provider || stateData.workspaceId !== workspaceId) {
+    if (
+      stateData.provider !== provider ||
+      stateData.workspaceId !== workspaceId
+    ) {
       return res.redirect(`${redirectBase}?error=state_mismatch`);
     }
 
@@ -129,13 +135,17 @@ export class IntegrationsController {
           await this.handleNotionCallback(workspaceId, stateData.userId, code);
           break;
         default:
-          throw new BadRequestException('Invalid provider');
+          throw new BadRequestException("Invalid provider");
       }
 
-      return res.redirect(`${redirectBase}?success=true&provider=${provider}&openSettings=${provider}`);
+      return res.redirect(
+        `${redirectBase}?success=true&provider=${provider}&openSettings=${provider}`,
+      );
     } catch (err: any) {
       console.error(`OAuth callback error (${provider}):`, err.message);
-      return res.redirect(`${redirectBase}?error=${encodeURIComponent(err.message)}`);
+      return res.redirect(
+        `${redirectBase}?error=${encodeURIComponent(err.message)}`,
+      );
     }
   }
 
@@ -149,17 +159,22 @@ export class IntegrationsController {
     // Fetch available repositories
     const repos = await this.fetchAllGitHubRepos(tokenData.access_token);
 
-    await this.integrationsService.upsert(workspaceId, userId, Provider.GITHUB, {
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token || undefined,
-      tokenExpiresAt: tokenData.expires_in
-        ? new Date(Date.now() + tokenData.expires_in * 1000)
-        : undefined,
-      config: {
-        availableRepos: repos,
-        selectedRepos: [], // User will select which repos to sync
+    await this.integrationsService.upsert(
+      workspaceId,
+      userId,
+      Provider.GITHUB,
+      {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || undefined,
+        tokenExpiresAt: tokenData.expires_in
+          ? new Date(Date.now() + tokenData.expires_in * 1000)
+          : undefined,
+        config: {
+          availableRepos: repos,
+          selectedRepos: [], // User will select which repos to sync
+        },
       },
-    });
+    );
   }
 
   private async fetchAllGitHubRepos(
@@ -170,7 +185,10 @@ export class IntegrationsController {
     const perPage = 100;
 
     while (true) {
-      const { data } = await this.githubOAuth.getRepos(accessToken, { page, perPage });
+      const { data } = await this.githubOAuth.getRepos(accessToken, {
+        page,
+        perPage,
+      });
       repos.push(
         ...data.map((repo) => ({
           id: repo.id,
@@ -193,10 +211,11 @@ export class IntegrationsController {
     let cursor: string | undefined;
 
     while (true) {
-      const { data, nextCursor } = await this.slackOAuth.getChannelsWithPagination(accessToken, {
-        limit: 200,
-        cursor,
-      });
+      const { data, nextCursor } =
+        await this.slackOAuth.getChannelsWithPagination(accessToken, {
+          limit: 200,
+          cursor,
+        });
 
       channels.push(...data);
 
@@ -209,8 +228,14 @@ export class IntegrationsController {
 
   private async fetchAllNotionPages(
     accessToken: string,
-  ): Promise<{ id: string; title: string; icon?: { type: string; emoji?: string } }[]> {
-    const pages: { id: string; title: string; icon?: { type: string; emoji?: string } }[] = [];
+  ): Promise<
+    { id: string; title: string; icon?: { type: string; emoji?: string } }[]
+  > {
+    const pages: {
+      id: string;
+      title: string;
+      icon?: { type: string; emoji?: string };
+    }[] = [];
     let cursor: string | undefined;
 
     while (true) {
@@ -218,8 +243,10 @@ export class IntegrationsController {
 
       pages.push(
         ...result.pages.map((page) => {
-          const titleProp = Object.values(page.properties).find((p: any) => p.title);
-          const title = titleProp?.title?.[0]?.plain_text || 'Untitled';
+          const titleProp = Object.values(page.properties).find(
+            (p: any) => p.title,
+          );
+          const title = titleProp?.title?.[0]?.plain_text || "Untitled";
           return {
             id: page.id,
             title,
@@ -240,31 +267,42 @@ export class IntegrationsController {
     userId: string,
     code: string,
   ) {
-    console.log('=== Slack OAuth Callback Start ===');
+    console.log("=== Slack OAuth Callback Start ===");
     const tokenData = await this.slackOAuth.exchangeCodeForToken(code);
 
-    console.log('Slack OAuth response:', JSON.stringify({
-      hasAccessToken: !!tokenData.access_token,
-      accessTokenPrefix: tokenData.access_token?.substring(0, 20),
-      hasAuthedUser: !!tokenData.authed_user,
-      authedUserHasToken: !!tokenData.authed_user?.access_token,
-      authedUserTokenPrefix: tokenData.authed_user?.access_token?.substring(0, 20),
-      team: tokenData.team,
-      scope: tokenData.scope,
-      authedUserScope: tokenData.authed_user?.scope,
-    }, null, 2));
+    console.log(
+      "Slack OAuth response:",
+      JSON.stringify(
+        {
+          hasAccessToken: !!tokenData.access_token,
+          accessTokenPrefix: tokenData.access_token?.substring(0, 20),
+          hasAuthedUser: !!tokenData.authed_user,
+          authedUserHasToken: !!tokenData.authed_user?.access_token,
+          authedUserTokenPrefix: tokenData.authed_user?.access_token?.substring(
+            0,
+            20,
+          ),
+          team: tokenData.team,
+          scope: tokenData.scope,
+          authedUserScope: tokenData.authed_user?.scope,
+        },
+        null,
+        2,
+      ),
+    );
 
     // Use user's access token if available, otherwise fall back to bot token
-    const userAccessToken = tokenData.authed_user?.access_token || tokenData.access_token;
+    const userAccessToken =
+      tokenData.authed_user?.access_token || tokenData.access_token;
 
-    console.log('Using token prefix:', userAccessToken?.substring(0, 20));
+    console.log("Using token prefix:", userAccessToken?.substring(0, 20));
 
     if (!userAccessToken) {
-      throw new Error('No access token received from Slack');
+      throw new Error("No access token received from Slack");
     }
 
     // Get available channels using user token
-    console.log('Fetching channels...');
+    console.log("Fetching channels...");
     const channels = await this.fetchAllSlackChannels(userAccessToken);
     console.log(`Fetched ${channels.length} channels`);
 
@@ -278,7 +316,7 @@ export class IntegrationsController {
         selectedChannels: [], // User will select which channels to sync
       },
     });
-    console.log('=== Slack OAuth Callback Complete ===');
+    console.log("=== Slack OAuth Callback Complete ===");
   }
 
   private async handleNotionCallback(
@@ -291,22 +329,27 @@ export class IntegrationsController {
     // Get available pages with pagination
     const pages = await this.fetchAllNotionPages(tokenData.access_token);
 
-    await this.integrationsService.upsert(workspaceId, userId, Provider.NOTION, {
-      accessToken: tokenData.access_token,
-      config: {
-        notionWorkspaceId: tokenData.workspace_id,
-        notionWorkspaceName: tokenData.workspace_name,
-        availablePages: pages,
-        selectedPages: [], // User will select which pages to sync
+    await this.integrationsService.upsert(
+      workspaceId,
+      userId,
+      Provider.NOTION,
+      {
+        accessToken: tokenData.access_token,
+        config: {
+          notionWorkspaceId: tokenData.workspace_id,
+          notionWorkspaceName: tokenData.workspace_name,
+          availablePages: pages,
+          selectedPages: [], // User will select which pages to sync
+        },
       },
-    });
+    );
   }
 
-  @Patch(':provider')
+  @Patch(":provider")
   async updateConfig(
     @Request() req: any,
-    @Param('workspaceId') workspaceId: string,
-    @Param('provider') provider: Provider,
+    @Param("workspaceId") workspaceId: string,
+    @Param("provider") provider: Provider,
     @Body() dto: UpdateIntegrationConfigDto,
   ) {
     await this.integrationsService.updateConfig(
@@ -318,11 +361,11 @@ export class IntegrationsController {
     return { success: true };
   }
 
-  @Delete(':provider')
+  @Delete(":provider")
   async disconnect(
     @Request() req: any,
-    @Param('workspaceId') workspaceId: string,
-    @Param('provider') provider: Provider,
+    @Param("workspaceId") workspaceId: string,
+    @Param("provider") provider: Provider,
   ) {
     await this.integrationsService.delete(workspaceId, req.user.id, provider);
     return { success: true };

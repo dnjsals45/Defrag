@@ -26,7 +26,7 @@ export default function DashboardPage() {
     if (!currentWorkspace) return;
     try {
       const { data } = await integrationApi.list(currentWorkspace.id);
-      const connected = data.integrations.filter((i: any) => i.connected).length;
+      const connected = data.integrations.filter((i: any) => i.connected).length; // eslint-disable-line @typescript-eslint/no-explicit-any
       setConnectedCount(connected);
     } catch (error) {
       console.error('Failed to load integrations:', error);
