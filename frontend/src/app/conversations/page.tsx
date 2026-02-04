@@ -328,7 +328,7 @@ export default function ConversationsPage() {
                       {message.role === 'user' ? (
                         <p className="whitespace-pre-wrap">{message.content}</p>
                       ) : (
-                        <div className="prose prose-sm max-w-none prose-gray prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-gray-800 prose-pre:text-gray-100 prose-code:text-purple-600 prose-code:bg-purple-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
+                        <div className="prose prose-sm max-w-none prose-gray prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-gray-800 prose-pre:text-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto [&_pre_code]:text-gray-100 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&>code]:text-purple-600 [&>code]:bg-purple-50 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&_p_code]:text-purple-600 [&_p_code]:bg-purple-50 [&_p_code]:px-1 [&_p_code]:py-0.5 [&_p_code]:rounded [&_li_code]:text-purple-600 [&_li_code]:bg-purple-50 [&_li_code]:px-1 [&_li_code]:py-0.5 [&_li_code]:rounded prose-code:before:content-none prose-code:after:content-none">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {message.content}
                           </ReactMarkdown>
