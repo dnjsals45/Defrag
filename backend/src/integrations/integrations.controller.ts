@@ -11,6 +11,7 @@ import {
   Res,
   BadRequestException,
 } from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from "@nestjs/swagger";
 import { Response } from "express";
 import { ConfigService } from "@nestjs/config";
 import { IntegrationsService } from "./integrations.service";
@@ -25,6 +26,8 @@ import {
 } from "../oauth/providers/slack.service";
 import { NotionOAuthService } from "../oauth/providers/notion.service";
 
+@ApiTags("Integrations")
+@ApiBearerAuth("access-token")
 @Controller("workspaces/:workspaceId/integrations")
 @UseGuards(JwtAuthGuard)
 export class IntegrationsController {
@@ -38,6 +41,9 @@ export class IntegrationsController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: "연동 목록", description: "워크스페이스의 외부 서비스 연동 목록 조회" })
+  @ApiParam({ name: "workspaceId", description: "워크스페이스 ID" })
+  @ApiResponse({ status: 200, description: "연동 목록 반환" })
   async findAll(
     @Request() req: any,
     @Param("workspaceId") workspaceId: string,
@@ -50,6 +56,10 @@ export class IntegrationsController {
   }
 
   @Get(":provider/auth")
+  @ApiOperation({ summary: "OAuth 시작", description: "외부 서비스 OAuth 인증 시작" })
+  @ApiParam({ name: "workspaceId", description: "워크스페이스 ID" })
+  @ApiParam({ name: "provider", enum: ["github", "slack", "notion"], description: "서비스 제공자" })
+  @ApiResponse({ status: 302, description: "OAuth 페이지로 리다이렉트" })
   async startAuth(
     @Request() req: any,
     @Param("workspaceId") workspaceId: string,
@@ -85,6 +95,13 @@ export class IntegrationsController {
   }
 
   @Get(":provider/callback")
+  @ApiOperation({ summary: "OAuth 콜백", description: "OAuth 인증 완료 후 콜백 처리" })
+  @ApiParam({ name: "workspaceId", description: "워크스페이스 ID" })
+  @ApiParam({ name: "provider", enum: ["github", "slack", "notion"], description: "서비스 제공자" })
+  @ApiQuery({ name: "code", required: false, description: "인증 코드" })
+  @ApiQuery({ name: "state", required: false, description: "상태 토큰" })
+  @ApiQuery({ name: "error", required: false, description: "에러 메시지" })
+  @ApiResponse({ status: 302, description: "프론트엔드로 리다이렉트" })
   async handleCallback(
     @Param("workspaceId") workspaceId: string,
     @Param("provider") provider: Provider,
@@ -346,6 +363,10 @@ export class IntegrationsController {
   }
 
   @Patch(":provider")
+  @ApiOperation({ summary: "연동 설정 수정", description: "연동 설정 업데이트 (동기화 대상 등)" })
+  @ApiParam({ name: "workspaceId", description: "워크스페이스 ID" })
+  @ApiParam({ name: "provider", enum: ["github", "slack", "notion"], description: "서비스 제공자" })
+  @ApiResponse({ status: 200, description: "설정 수정 성공" })
   async updateConfig(
     @Request() req: any,
     @Param("workspaceId") workspaceId: string,
@@ -362,6 +383,10 @@ export class IntegrationsController {
   }
 
   @Delete(":provider")
+  @ApiOperation({ summary: "연동 해제", description: "외부 서비스 연동 해제" })
+  @ApiParam({ name: "workspaceId", description: "워크스페이스 ID" })
+  @ApiParam({ name: "provider", enum: ["github", "slack", "notion"], description: "서비스 제공자" })
+  @ApiResponse({ status: 200, description: "연동 해제 성공" })
   async disconnect(
     @Request() req: any,
     @Param("workspaceId") workspaceId: string,

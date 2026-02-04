@@ -6,6 +6,8 @@ import { Repository } from "typeorm";
 import { ContextItem } from "../database/entities/context-item.entity";
 import { VectorData } from "../database/entities/vector-data.entity";
 import { EmbeddingService } from "./embedding.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../database/entities/notification.entity";
 
 export interface EmbeddingJobData {
   itemIds: string[];
@@ -28,6 +30,7 @@ export class EmbeddingProcessor extends WorkerHost {
 
   constructor(
     private readonly embeddingService: EmbeddingService,
+    private readonly notificationsService: NotificationsService,
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
     @InjectRepository(VectorData)
@@ -96,6 +99,27 @@ export class EmbeddingProcessor extends WorkerHost {
       this.logger.log(
         `Embedding generation completed: ${result.processedCount} processed, ${result.skippedCount} skipped, ${result.failedCount} failed`,
       );
+
+      // Send notification if any items were processed
+      if (result.processedCount > 0) {
+        try {
+          await this.notificationsService.createForWorkspace(
+            workspaceId,
+            NotificationType.EMBEDDING_COMPLETE,
+            "임베딩 완료",
+            `${result.processedCount}개 항목의 임베딩이 완료되었습니다.`,
+            {
+              processedCount: result.processedCount,
+              skippedCount: result.skippedCount,
+              failedCount: result.failedCount,
+            },
+          );
+        } catch (notifError) {
+          this.logger.error(
+            `Failed to send notification: ${notifError instanceof Error ? notifError.message : "Unknown error"}`,
+          );
+        }
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       this.logger.error(`Embedding job failed: ${errorMsg}`);

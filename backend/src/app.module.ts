@@ -19,6 +19,7 @@ import { EmailModule } from "./email/email.module";
 import { ConversationsModule } from "./conversations/conversations.module";
 import { HealthModule } from "./health/health.module";
 import { InvitationsModule } from "./invitations/invitations.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { InvitationsModule } from "./invitations/invitations.module";
     ConversationsModule,
     HealthModule,
     InvitationsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

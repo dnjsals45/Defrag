@@ -67,8 +67,8 @@ export class SlackSyncProcessor extends WorkerHost {
         return result;
       }
 
-      // Get team domain from config for building URLs
-      const teamDomain = await this.getTeamDomain(workspaceId);
+      // Get team ID from config for building URLs
+      const teamId = await this.getTeamId(workspaceId);
 
       // Get channels to sync - either targetItems or all selected channels
       let channelIdsToSync: string[];
@@ -128,7 +128,7 @@ export class SlackSyncProcessor extends WorkerHost {
             channel,
             workspaceId,
             oldest,
-            teamDomain,
+            teamId,
             job,
           );
           await this.delay(this.RATE_LIMIT_DELAY);
@@ -169,7 +169,7 @@ export class SlackSyncProcessor extends WorkerHost {
     channel: SlackChannel,
     workspaceId: string,
     oldest?: string,
-    teamDomain?: string,
+    teamId?: string,
     job?: Job,
   ): Promise<void> {
     let cursor: string | undefined;
@@ -206,14 +206,14 @@ export class SlackSyncProcessor extends WorkerHost {
             channel,
             message.ts,
             workspaceId,
-            teamDomain,
+            teamId,
           );
         } else if (!message.thread_ts) {
           // Regular message (not a thread reply)
           const transformed = SlackTransformer.transformMessage(
             message,
             channel,
-            teamDomain,
+            teamId,
           );
           await this.upsertItem(workspaceId, transformed);
         }
@@ -241,7 +241,7 @@ export class SlackSyncProcessor extends WorkerHost {
     channel: SlackChannel,
     threadTs: string,
     workspaceId: string,
-    teamDomain?: string,
+    teamId?: string,
   ): Promise<void> {
     const allReplies: any[] = [];
     let cursor: string | undefined;
@@ -269,18 +269,15 @@ export class SlackSyncProcessor extends WorkerHost {
         parentMessage,
         allReplies,
         channel,
-        teamDomain,
+        teamId,
       );
       await this.upsertItem(workspaceId, transformed);
     }
   }
 
-  private async getTeamDomain(
-    workspaceId: string,
-  ): Promise<string | undefined> {
-    // This would typically come from the integration config
-    // For now, return undefined and the transformer will skip URL generation
-    return undefined;
+  private async getTeamId(workspaceId: string): Promise<string | undefined> {
+    const teamId = await this.integrationsService.getSlackTeamId(workspaceId);
+    return teamId || undefined;
   }
 
   private async upsertItem(

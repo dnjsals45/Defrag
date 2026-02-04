@@ -139,6 +139,22 @@ export const invitationApi = {
   reject: (id: string) => api.post(`/invitations/${id}/reject`),
 };
 
+// Notification API
+export const notificationApi = {
+  list: (params?: { limit?: number; offset?: number }) =>
+    api.get('/notifications', { params }),
+  unreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id: string) => api.post(`/notifications/${id}/read`),
+  markAllAsRead: () => api.post('/notifications/read-all'),
+};
+
+// SSE URL for notifications
+export const getNotificationStreamUrl = () => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+  if (!token) return null;
+  return `${API_URL}/notifications/stream?token=${encodeURIComponent(token)}`;
+};
+
 // Conversation API
 export const conversationApi = {
   list: (workspaceId: string, params?: { page?: number; limit?: number }) =>

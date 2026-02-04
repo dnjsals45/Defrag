@@ -134,9 +134,9 @@ export class ConversationsService {
     });
 
     // Filter by score threshold (score = 1 - distance)
-    // 한국어 텍스트의 경우 거리가 더 클 수 있으므로 0.25로 낮춤
+    // 0.4 이상만 포함하여 관련성 높은 결과만 사용
     const relevantResults = searchResults.results.filter(
-      (r: any) => r.score >= 0.25,
+      (r: any) => r.score >= 0.4,
     );
 
     this.logger.debug(
@@ -191,9 +191,10 @@ export class ConversationsService {
     await this.messageRepository.save(assistantMessage);
 
     // 7. Update conversation title if it's the first message
+    let updatedTitle: string | null = conversation.title;
     if (!conversation.title) {
-      const title = this.generateTitle(dto.question);
-      await this.conversationRepository.update(conversationId, { title });
+      updatedTitle = this.generateTitle(dto.question);
+      await this.conversationRepository.update(conversationId, { title: updatedTitle });
     }
 
     // 8. Update conversation's updatedAt
@@ -205,6 +206,10 @@ export class ConversationsService {
       userMessage,
       assistantMessage,
       sources,
+      conversation: {
+        id: conversationId,
+        title: updatedTitle,
+      },
     };
   }
 

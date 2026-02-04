@@ -8,3 +8,5 @@ export * from "./vector-data.entity";
 export * from "./item-relation.entity";
 export * from "./conversation.entity";
 export * from "./conversation-message.entity";
+export * from "./workspace-invitation.entity";
+export * from "./notification.entity";

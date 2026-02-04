@@ -169,3 +169,21 @@ CREATE TABLE IF NOT EXISTS workspace_invitation (
 CREATE INDEX IF NOT EXISTS idx_workspace_invitation_workspace ON workspace_invitation(workspace_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_workspace_invitation_invitee ON workspace_invitation(invitee_id) WHERE deleted_at IS NULL AND status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_workspace_invitation_email ON workspace_invitation(invitee_email) WHERE deleted_at IS NULL AND status = 'pending';
+
+-- 12. notification (실시간 알림 시스템)
+CREATE TABLE IF NOT EXISTS notification (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    workspace_id BIGINT REFERENCES workspace(id),
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    metadata JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_user ON notification(user_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notification_user_unread ON notification(user_id, is_read) WHERE deleted_at IS NULL AND is_read = FALSE;

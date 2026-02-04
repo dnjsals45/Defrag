@@ -130,6 +130,16 @@ export class IntegrationsService {
   }
 
   /**
+   * Get Slack team ID for a workspace
+   */
+  async getSlackTeamId(workspaceId: string): Promise<string | null> {
+    const integration = await this.integrationsRepository.findOne({
+      where: { workspaceId, provider: Provider.SLACK },
+    });
+    return integration?.config?.teamId ?? null;
+  }
+
+  /**
    * Get Notion selected pages for a workspace
    */
   async getNotionSelectedPages(workspaceId: string): Promise<string[]> {
