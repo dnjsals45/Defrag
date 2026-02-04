@@ -9,6 +9,7 @@ export interface TransformedItem {
   sourceUrl: string | null;
   metadata: Record<string, any>;
   importanceScore: number;
+  createdAt?: Date;
 }
 
 export class SlackTransformer {
@@ -56,6 +57,7 @@ export class SlackTransformer {
         date: date.toISOString(),
       },
       importanceScore: SlackTransformer.calculateImportance(message),
+      createdAt: date,
     };
   }
 
@@ -100,6 +102,7 @@ export class SlackTransformer {
         isThread: true,
       },
       importanceScore: SlackTransformer.calculateThreadImportance(parentMessage, replies),
+      createdAt: date,
     };
   }
 

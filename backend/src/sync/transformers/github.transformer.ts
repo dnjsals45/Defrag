@@ -13,6 +13,7 @@ export interface TransformedItem {
   sourceUrl: string;
   metadata: Record<string, any>;
   importanceScore: number;
+  createdAt?: Date;
 }
 
 export class GitHubTransformer {
@@ -42,6 +43,7 @@ export class GitHubTransformer {
         closedAt: issue.closed_at,
       },
       importanceScore: GitHubTransformer.calculateIssueImportance(issue),
+      createdAt: new Date(issue.created_at),
     };
   }
 
@@ -80,6 +82,7 @@ export class GitHubTransformer {
         mergedAt: pr.merged_at,
       },
       importanceScore: GitHubTransformer.calculatePRImportance(pr),
+      createdAt: new Date(pr.created_at),
     };
   }
 
@@ -103,6 +106,7 @@ export class GitHubTransformer {
         date: commit.commit.author.date,
       },
       importanceScore: GitHubTransformer.calculateCommitImportance(commit),
+      createdAt: new Date(commit.commit.author.date),
     };
   }
 

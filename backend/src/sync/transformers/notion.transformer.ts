@@ -13,6 +13,7 @@ export interface TransformedItem {
   sourceUrl: string;
   metadata: Record<string, any>;
   importanceScore: number;
+  createdAt?: Date;
 }
 
 export class NotionTransformer {
@@ -37,6 +38,7 @@ export class NotionTransformer {
         blockCount: blocks.length,
       },
       importanceScore: NotionTransformer.calculateImportance(page, blocks),
+      createdAt: new Date(page.created_time),
     };
   }
 

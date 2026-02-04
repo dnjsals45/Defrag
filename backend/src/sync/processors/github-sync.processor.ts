@@ -275,6 +275,7 @@ export class GitHubSyncProcessor extends WorkerHost {
       sourceUrl: string;
       metadata: Record<string, any>;
       importanceScore: number;
+      createdAt?: Date;
     },
   ): Promise<void> {
     const existing = await this.itemsRepository.findOne({
