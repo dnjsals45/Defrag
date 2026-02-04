@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Link as LinkIcon, Github, MessageSquare, FileText, Check, X, Settings } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
@@ -56,6 +56,7 @@ const providers = [
 function ConnectionsPageContent() {
   const { currentWorkspace } = useWorkspaceStore();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showRepoSelector, setShowRepoSelector] = useState(false);
@@ -68,30 +69,7 @@ function ConnectionsPageContent() {
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [isSavingPages, setIsSavingPages] = useState(false);
 
-  useEffect(() => {
-    loadIntegrations();
-  }, [currentWorkspace]);
-
-  // OAuth 연결 완료 후 자동으로 설정창 열기
-  useEffect(() => {
-    const openSettings = searchParams.get('openSettings');
-    const success = searchParams.get('success');
-
-    // success=true와 openSettings가 있고, integrations가 로드된 후에만 실행
-    if (openSettings && success === 'true' && !isLoading && integrations.length > 0) {
-      // URL 파라미터 제거
-      window.history.replaceState({}, '', window.location.pathname);
-
-      // 해당 provider의 설정창 열기 (연결 성공했으므로 isConnected 체크 불필요)
-      if (openSettings === 'github') {
-        openRepoSelector();
-      } else if (openSettings === 'slack') {
-        openChannelSelector();
-      } else if (openSettings === 'notion') {
-        openPageSelector();
-      }
-    }
-  }, [searchParams, isLoading, integrations]);
+  const isAdmin = currentWorkspace?.role === 'ADMIN';
 
   const loadIntegrations = async () => {
     if (!currentWorkspace) {
@@ -109,6 +87,52 @@ function ConnectionsPageContent() {
       setIsLoading(false);
     }
   };
+
+  // MEMBER 역할은 대시보드로 리다이렉트
+  useEffect(() => {
+    if (currentWorkspace && !isAdmin) {
+      router.replace('/dashboard');
+    }
+  }, [currentWorkspace, isAdmin, router]);
+
+  // ADMIN일 때만 integrations 로드
+  useEffect(() => {
+    if (currentWorkspace && isAdmin) {
+      loadIntegrations();
+    }
+  }, [currentWorkspace, isAdmin]);
+
+  // OAuth 연결 완료 후 자동으로 설정창 열기
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const openSettings = searchParams.get('openSettings');
+    const success = searchParams.get('success');
+
+    // success=true와 openSettings가 있고, integrations가 로드된 후에만 실행
+    if (openSettings && success === 'true' && !isLoading && integrations.length > 0) {
+      // URL 파라미터 제거
+      window.history.replaceState({}, '', window.location.pathname);
+
+      // 해당 provider의 설정창 열기 (연결 성공했으므로 isConnected 체크 불필요)
+      if (openSettings === 'github') {
+        openRepoSelector();
+      } else if (openSettings === 'slack') {
+        openChannelSelector();
+      } else if (openSettings === 'notion') {
+        openPageSelector();
+      }
+    }
+  }, [searchParams, isLoading, integrations, isAdmin]);
+
+  // 권한 체크 중이거나 MEMBER면 로딩 표시
+  if (!currentWorkspace || !isAdmin) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
 
   const handleConnect = (provider: string) => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';

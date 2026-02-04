@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Search,
   FolderOpen,
@@ -26,13 +26,14 @@ const navItems = [
   { href: '/items', label: '전체 아이템', icon: Database },
   { href: '/search', label: '검색', icon: Search },
   { href: '/conversations', label: 'AI 대화', icon: MessageSquare },
-  { href: '/settings/connections', label: '연결 관리', icon: LinkIcon },
-  { href: '/settings/members', label: '멤버 관리', icon: Users },
+  { href: '/settings/connections', label: '연결 관리', icon: LinkIcon, adminOnly: true },
+  { href: '/settings/members', label: '멤버 관리', icon: Users, teamOnly: true },
   { href: '/settings', label: '설정', icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuthStore();
   const { workspaces, currentWorkspace, setCurrentWorkspace, createWorkspace } = useWorkspaceStore();
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
@@ -101,6 +102,8 @@ export function Sidebar() {
                   onClick={() => {
                     setCurrentWorkspace(ws);
                     setShowWorkspaceDropdown(false);
+                    // 워크스페이스 변경 시 대시보드로 이동 (권한 문제 방지)
+                    router.push('/dashboard');
                   }}
                   className={cn(
                     'w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors',
@@ -130,7 +133,19 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
+        {navItems
+          .filter((item) => {
+            // adminOnly: ADMIN 역할만 볼 수 있음
+            if (item.adminOnly && currentWorkspace?.role !== 'ADMIN') {
+              return false;
+            }
+            // teamOnly: 팀 워크스페이스에서만 볼 수 있음
+            if (item.teamOnly && currentWorkspace?.type !== 'team') {
+              return false;
+            }
+            return true;
+          })
+          .map((item) => {
           // /settings는 정확히 일치할 때만, 나머지는 하위 경로도 포함
           const isActive = item.href === '/settings'
             ? pathname === item.href

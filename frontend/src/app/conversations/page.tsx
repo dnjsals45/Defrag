@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Plus, Send, Trash2, MessageSquare, ExternalLink, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -35,6 +36,8 @@ interface Conversation {
 
 export default function ConversationsPage() {
   const { currentWorkspace } = useWorkspaceStore();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,11 +46,22 @@ export default function ConversationsPage() {
   const [question, setQuestion] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const conversationIdFromUrl = searchParams.get('id');
+
   useEffect(() => {
     if (currentWorkspace) {
       loadConversations();
     }
   }, [currentWorkspace]);
+
+  // URL에서 대화 ID가 있으면 해당 대화 로드
+  useEffect(() => {
+    if (conversationIdFromUrl && currentWorkspace && conversations.length > 0) {
+      // 이미 선택된 대화와 같으면 스킵
+      if (selectedConversation?.id === conversationIdFromUrl) return;
+      loadConversation(conversationIdFromUrl);
+    }
+  }, [conversationIdFromUrl, currentWorkspace, conversations]);
 
   useEffect(() => {
     scrollToBottom();
@@ -87,6 +101,8 @@ export default function ConversationsPage() {
       const { data } = await conversationApi.create(currentWorkspace.id);
       setConversations((prev) => [data, ...prev]);
       setSelectedConversation({ ...data, messages: [] });
+      // URL에 새 대화 ID 반영
+      router.push(`/conversations?id=${data.id}`, { scroll: false });
     } catch (error) {
       console.error('Failed to create conversation:', error);
     } finally {
@@ -102,6 +118,8 @@ export default function ConversationsPage() {
       setConversations((prev) => prev.filter((c) => c.id !== conversationId));
       if (selectedConversation?.id === conversationId) {
         setSelectedConversation(null);
+        // URL에서 대화 ID 제거
+        router.push('/conversations', { scroll: false });
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
@@ -243,7 +261,7 @@ export default function ConversationsPage() {
                       'group flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors',
                       selectedConversation?.id === conversation.id && 'bg-blue-50'
                     )}
-                    onClick={() => loadConversation(conversation.id)}
+                    onClick={() => router.push(`/conversations?id=${conversation.id}`, { scroll: false })}
                   >
                     <MessageSquare className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -324,9 +342,14 @@ export default function ConversationsPage() {
                             참고 문서:
                           </p>
                           <div className="space-y-1">
-                            {message.sources.slice(0, 3).map((source) => (
+                            {message.sources
+                              .filter((source, index, self) =>
+                                self.findIndex(s => s.id === source.id) === index
+                              )
+                              .slice(0, 3)
+                              .map((source, index) => (
                               <a
-                                key={source.id}
+                                key={`${source.id}-${index}`}
                                 href={source.sourceUrl || '#'}
                                 target="_blank"
                                 rel="noopener noreferrer"

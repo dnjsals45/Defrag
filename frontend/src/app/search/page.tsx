@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Search, Sparkles, Filter, ExternalLink } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Search, Filter, ExternalLink } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { searchApi } from '@/lib/api';
 import { getSourceIcon, getSourceLabel } from '@/lib/utils';
-import type { SearchResult, AskResponse } from '@/types';
+import type { SearchResult } from '@/types';
 
 const sourceFilters = [
   { value: '', label: '전체' },
@@ -21,29 +21,46 @@ const sourceFilters = [
 
 function SearchContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { currentWorkspace } = useWorkspaceStore();
   const [query, setQuery] = useState(searchParams.get('q') || '');
-  const [sourceFilter, setSourceFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '');
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [askResponse, setAskResponse] = useState<AskResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [isAsking, setIsAsking] = useState(false);
-  const [mode, setMode] = useState<'search' | 'ask'>('search');
 
   useEffect(() => {
     const q = searchParams.get('q');
+    const source = searchParams.get('source') || '';
     if (q && currentWorkspace) {
       setQuery(q);
-      handleSearch(q);
+      setSourceFilter(source);
+      handleSearchWithFilter(q, source);
     }
   }, [searchParams, currentWorkspace]);
+
+  const handleSearchWithFilter = async (searchQuery: string, filter: string) => {
+    if (!currentWorkspace || !searchQuery.trim()) return;
+
+    setIsSearching(true);
+    try {
+      const { data } = await searchApi.search(currentWorkspace.id, {
+        query: searchQuery,
+        sources: filter ? [filter] : undefined,
+        limit: 20,
+      });
+      setResults(data.results);
+    } catch (error) {
+      console.error('Search failed:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleSearch = async (searchQuery?: string) => {
     const q = searchQuery || query;
     if (!currentWorkspace || !q.trim()) return;
 
     setIsSearching(true);
-    setAskResponse(null);
     try {
       const { data } = await searchApi.search(currentWorkspace.id, {
         query: q,
@@ -58,31 +75,19 @@ function SearchContent() {
     }
   };
 
-  const handleAsk = async () => {
-    if (!currentWorkspace || !query.trim()) return;
-
-    setIsAsking(true);
-    setResults([]);
-    try {
-      const { data } = await searchApi.ask(currentWorkspace.id, {
-        question: query,
-        includeContext: true,
-      });
-      setAskResponse(data);
-    } catch (error) {
-      console.error('Ask failed:', error);
-    } finally {
-      setIsAsking(false);
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === 'search') {
-      handleSearch();
-    } else {
-      handleAsk();
+    if (!query.trim()) return;
+
+    // URL에 검색 쿼리 반영
+    const params = new URLSearchParams();
+    params.set('q', query.trim());
+    if (sourceFilter) {
+      params.set('source', sourceFilter);
     }
+    router.push(`/search?${params.toString()}`, { scroll: false });
+
+    handleSearch();
   };
 
   if (!currentWorkspace) {
@@ -109,32 +114,6 @@ function SearchContent() {
         </p>
       </div>
 
-      {/* Mode Toggle */}
-      <div className="flex justify-center gap-2">
-        <button
-          onClick={() => setMode('search')}
-          className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-            mode === 'search'
-              ? 'bg-blue-100 text-blue-700'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Search className="w-4 h-4" />
-          검색
-        </button>
-        <button
-          onClick={() => setMode('ask')}
-          className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-            mode === 'ask'
-              ? 'bg-purple-100 text-purple-700'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          AI에게 질문
-        </button>
-      </div>
-
       {/* Search Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="relative">
@@ -142,94 +121,64 @@ function SearchContent() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={
-              mode === 'search'
-                ? '키워드로 검색...'
-                : '질문을 입력하세요 (예: 인증 방식은 어떻게 결정했어?)'
-            }
+            placeholder="키워드로 검색..."
             className="w-full px-5 py-4 pr-24 text-lg border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <Button
             type="submit"
-            isLoading={isSearching || isAsking}
+            isLoading={isSearching}
             className="absolute right-2 top-1/2 -translate-y-1/2"
           >
-            {mode === 'search' ? '검색' : '질문'}
+            검색
           </Button>
         </div>
 
         {/* Filters */}
-        {mode === 'search' && (
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-400" />
-            <div className="flex gap-2 flex-wrap">
-              {sourceFilters.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setSourceFilter(filter.value)}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                    sourceFilter === filter.value
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-gray-400" />
+          <div className="flex gap-2 flex-wrap">
+            {sourceFilters.map((filter) => (
+              <button
+                key={filter.value || 'all'}
+                type="button"
+                onClick={() => {
+                  setSourceFilter(filter.value);
+                  // 검색어가 있으면 필터 변경 시 URL 업데이트 및 재검색
+                  if (query.trim()) {
+                    const params = new URLSearchParams();
+                    params.set('q', query.trim());
+                    if (filter.value) {
+                      params.set('source', filter.value);
+                    }
+                    router.push(`/search?${params.toString()}`, { scroll: false });
+                    handleSearchWithFilter(query.trim(), filter.value);
+                  }
+                }}
+                className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                  sourceFilter === filter.value
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
       </form>
 
-      {/* AI Response */}
-      {askResponse && (
-        <Card className="border-purple-200 bg-purple-50/50">
-          <CardContent className="py-6">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Sparkles className="w-5 h-5 text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-gray-900 whitespace-pre-wrap">
-                  {askResponse.answer}
-                </p>
-                {askResponse.sources && askResponse.sources.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-purple-200">
-                    <p className="text-sm font-medium text-gray-700 mb-2">
-                      참고한 문서:
-                    </p>
-                    <div className="space-y-2">
-                      {askResponse.sources.map((source) => (
-                        <a
-                          key={source.id}
-                          href={source.sourceUrl || '#'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600"
-                        >
-                          <span>{getSourceIcon(source.sourceType)}</span>
-                          <span className="truncate">{source.title}</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Search Results */}
-      {results.length > 0 && (
+      {results.length > 0 && (() => {
+        const uniqueResults = results.filter((result, index, self) =>
+          self.findIndex(r => r.id === result.id) === index
+        );
+        return (
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
-            {results.length}개의 결과
+            {uniqueResults.length}개의 결과
           </p>
-          {results.map((result) => (
-            <Card key={result.id} className="hover:shadow-md transition-shadow">
+          {uniqueResults.map((result, index) => (
+            <Card key={`${result.id}-${index}`} className="hover:shadow-md transition-shadow">
               <CardContent className="py-4">
                 <a
                   href={result.sourceUrl || '#'}
@@ -265,10 +214,11 @@ function SearchContent() {
             </Card>
           ))}
         </div>
-      )}
+        );
+      })()}
 
       {/* Empty State */}
-      {!isSearching && !isAsking && !askResponse && results.length === 0 && query && (
+      {!isSearching && results.length === 0 && query && (
         <div className="text-center py-12 text-gray-500">
           <Search className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p>검색 결과가 없습니다</p>
