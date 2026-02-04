@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { firstValueFrom } from "rxjs";
 
 interface SlackTokenResponse {
   ok: boolean;
@@ -65,27 +65,32 @@ export class SlackOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.clientId = this.configService.get('SLACK_CLIENT_ID') || '';
-    this.clientSecret = this.configService.get('SLACK_CLIENT_SECRET') || '';
-    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
-    this.callbackUrl = this.configService.get('SLACK_CALLBACK_URL') || `${backendUrl}/api/connections/slack/callback`;
+    this.clientId = this.configService.get("SLACK_CLIENT_ID") || "";
+    this.clientSecret = this.configService.get("SLACK_CLIENT_SECRET") || "";
+    const backendUrl =
+      this.configService.get("BACKEND_URL") || "http://localhost:3001";
+    this.callbackUrl =
+      this.configService.get("SLACK_CALLBACK_URL") ||
+      `${backendUrl}/api/connections/slack/callback`;
   }
 
-  getAuthorizationUrl(state: string, isBot = false): string {
+  getAuthorizationUrl(state: string, useUserToken = false): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.callbackUrl,
       state,
     });
 
-    if (isBot) {
-      // Bot scopes for workspace integration
-      // channels:read - public channels, groups:read - private channels
-      params.set('scope', 'channels:history,channels:read,groups:history,groups:read,users:read');
-      params.set('user_scope', 'identify');
+    if (useUserToken) {
+      // User token for workspace integration - uses user's own permissions
+      // User can access any channel they're already a member of
+      params.set(
+        "user_scope",
+        "identify,channels:history,channels:read,groups:history,groups:read",
+      );
     } else {
-      // User scopes for personal connection
-      params.set('user_scope', 'identify,channels:history,channels:read');
+      // User scopes for personal connection (simpler)
+      params.set("user_scope", "identify,channels:history,channels:read");
     }
 
     return `https://slack.com/oauth/v2/authorize?${params.toString()}`;
@@ -94,7 +99,7 @@ export class SlackOAuthService {
   async exchangeCodeForToken(code: string): Promise<SlackTokenResponse> {
     const response = await firstValueFrom(
       this.httpService.post<SlackTokenResponse>(
-        'https://slack.com/api/oauth.v2.access',
+        "https://slack.com/api/oauth.v2.access",
         null,
         {
           params: {
@@ -104,7 +109,7 @@ export class SlackOAuthService {
             redirect_uri: this.callbackUrl,
           },
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            "Content-Type": "application/x-www-form-urlencoded",
           },
         },
       ),
@@ -119,7 +124,7 @@ export class SlackOAuthService {
 
   async getUser(accessToken: string, userId: string): Promise<SlackUser> {
     const response = await firstValueFrom(
-      this.httpService.get<SlackUser>('https://slack.com/api/users.info', {
+      this.httpService.get<SlackUser>("https://slack.com/api/users.info", {
         params: { user: userId },
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -135,9 +140,9 @@ export class SlackOAuthService {
       this.httpService.get<{
         ok: boolean;
         channels: SlackChannel[];
-      }>('https://slack.com/api/conversations.list', {
+      }>("https://slack.com/api/conversations.list", {
         params: {
-          types: 'public_channel,private_channel',
+          types: "public_channel,private_channel",
           exclude_archived: true,
         },
         headers: {
@@ -153,7 +158,11 @@ export class SlackOAuthService {
     accessToken: string,
     options: { limit?: number; cursor?: string; types?: string } = {},
   ): Promise<{ data: SlackChannel[]; nextCursor?: string }> {
-    const { limit = 200, cursor, types = 'public_channel,private_channel' } = options;
+    const {
+      limit = 200,
+      cursor,
+      types = "public_channel,private_channel",
+    } = options;
     const params: Record<string, any> = {
       types,
       exclude_archived: true,
@@ -167,7 +176,7 @@ export class SlackOAuthService {
         channels: SlackChannel[];
         response_metadata?: { next_cursor: string };
         error?: string;
-      }>('https://slack.com/api/conversations.list', {
+      }>("https://slack.com/api/conversations.list", {
         params,
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -190,7 +199,12 @@ export class SlackOAuthService {
   async getChannelHistory(
     accessToken: string,
     channelId: string,
-    options: { limit?: number; oldest?: string; latest?: string; cursor?: string } = {},
+    options: {
+      limit?: number;
+      oldest?: string;
+      latest?: string;
+      cursor?: string;
+    } = {},
   ): Promise<{
     messages: SlackMessage[];
     hasMore: boolean;
@@ -213,7 +227,7 @@ export class SlackOAuthService {
         has_more: boolean;
         response_metadata?: { next_cursor: string };
         error?: string;
-      }>('https://slack.com/api/conversations.history', {
+      }>("https://slack.com/api/conversations.history", {
         params,
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -222,8 +236,11 @@ export class SlackOAuthService {
     );
 
     if (!response.data.ok) {
-      if (response.data.error === 'ratelimited') {
-        const retryAfter = parseInt(response.headers['retry-after'] || '60', 10);
+      if (response.data.error === "ratelimited") {
+        const retryAfter = parseInt(
+          response.headers["retry-after"] || "60",
+          10,
+        );
         return { messages: [], hasMore: false, retryAfter };
       }
       throw new Error(`Slack API error: ${response.data.error}`);
@@ -261,7 +278,7 @@ export class SlackOAuthService {
         has_more: boolean;
         response_metadata?: { next_cursor: string };
         error?: string;
-      }>('https://slack.com/api/conversations.replies', {
+      }>("https://slack.com/api/conversations.replies", {
         params,
         headers: {
           Authorization: `Bearer ${accessToken}`,

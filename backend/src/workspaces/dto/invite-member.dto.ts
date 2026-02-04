@@ -1,5 +1,5 @@
-import { IsEmail, IsEnum, IsOptional } from 'class-validator';
-import { MemberRole } from '../../database/entities/workspace-member.entity';
+import { IsEmail, IsEnum, IsOptional } from "class-validator";
+import { MemberRole } from "../../database/entities/workspace-member.entity";
 
 export class InviteMemberDto {
   @IsEmail()

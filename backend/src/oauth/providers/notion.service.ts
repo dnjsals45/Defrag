@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { firstValueFrom } from "rxjs";
 
 interface NotionTokenResponse {
   access_token: string;
@@ -37,11 +37,16 @@ interface NotionUser {
 
 export interface NotionPage {
   id: string;
-  object: 'page';
+  object: "page";
   created_time: string;
   last_edited_time: string;
   url: string;
-  parent: { type: string; database_id?: string; page_id?: string; workspace?: boolean };
+  parent: {
+    type: string;
+    database_id?: string;
+    page_id?: string;
+    workspace?: boolean;
+  };
   properties: Record<string, NotionProperty>;
   icon?: { type: string; emoji?: string; external?: { url: string } };
 }
@@ -62,7 +67,7 @@ export interface NotionProperty {
 
 export interface NotionBlock {
   id: string;
-  object: 'block';
+  object: "block";
   type: string;
   created_time: string;
   last_edited_time: string;
@@ -81,7 +86,7 @@ export interface NotionBlock {
 
 export interface NotionDatabase {
   id: string;
-  object: 'database';
+  object: "database";
   title: { plain_text: string }[];
   url: string;
   created_time: string;
@@ -98,18 +103,21 @@ export class NotionOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.clientId = this.configService.get('NOTION_CLIENT_ID') || '';
-    this.clientSecret = this.configService.get('NOTION_CLIENT_SECRET') || '';
-    const backendUrl = this.configService.get('BACKEND_URL') || 'http://localhost:3001';
-    this.callbackUrl = this.configService.get('NOTION_CALLBACK_URL') || `${backendUrl}/api/connections/notion/callback`;
+    this.clientId = this.configService.get("NOTION_CLIENT_ID") || "";
+    this.clientSecret = this.configService.get("NOTION_CLIENT_SECRET") || "";
+    const backendUrl =
+      this.configService.get("BACKEND_URL") || "http://localhost:3001";
+    this.callbackUrl =
+      this.configService.get("NOTION_CALLBACK_URL") ||
+      `${backendUrl}/api/connections/notion/callback`;
   }
 
   getAuthorizationUrl(state: string): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.callbackUrl,
-      response_type: 'code',
-      owner: 'user',
+      response_type: "code",
+      owner: "user",
       state,
     });
 
@@ -117,21 +125,23 @@ export class NotionOAuthService {
   }
 
   async exchangeCodeForToken(code: string): Promise<NotionTokenResponse> {
-    const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+    const credentials = Buffer.from(
+      `${this.clientId}:${this.clientSecret}`,
+    ).toString("base64");
 
     const response = await firstValueFrom(
       this.httpService.post<NotionTokenResponse>(
-        'https://api.notion.com/v1/oauth/token',
+        "https://api.notion.com/v1/oauth/token",
         {
-          grant_type: 'authorization_code',
+          grant_type: "authorization_code",
           code,
           redirect_uri: this.callbackUrl,
         },
         {
           headers: {
             Authorization: `Basic ${credentials}`,
-            'Content-Type': 'application/json',
-            'Notion-Version': '2022-06-28',
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
           },
         },
       ),
@@ -143,10 +153,10 @@ export class NotionOAuthService {
   async getUser(accessToken: string): Promise<NotionUser | null> {
     try {
       const response = await firstValueFrom(
-        this.httpService.get<NotionUser>('https://api.notion.com/v1/users/me', {
+        this.httpService.get<NotionUser>("https://api.notion.com/v1/users/me", {
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            'Notion-Version': '2022-06-28',
+            "Notion-Version": "2022-06-28",
           },
         }),
       );
@@ -161,7 +171,7 @@ export class NotionOAuthService {
     cursor?: string,
   ): Promise<{ pages: NotionPage[]; hasMore: boolean; nextCursor?: string }> {
     const body: Record<string, any> = {
-      filter: { property: 'object', value: 'page' },
+      filter: { property: "object", value: "page" },
       page_size: 100,
     };
     if (cursor) body.start_cursor = cursor;
@@ -171,17 +181,13 @@ export class NotionOAuthService {
         results: NotionPage[];
         has_more: boolean;
         next_cursor: string | null;
-      }>(
-        'https://api.notion.com/v1/search',
-        body,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Notion-Version': '2022-06-28',
-            'Content-Type': 'application/json',
-          },
+      }>("https://api.notion.com/v1/search", body, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Notion-Version": "2022-06-28",
+          "Content-Type": "application/json",
         },
-      ),
+      }),
     );
 
     return {
@@ -204,7 +210,7 @@ export class NotionOAuthService {
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
-              'Notion-Version': '2022-06-28',
+              "Notion-Version": "2022-06-28",
             },
           },
         ),
@@ -228,16 +234,13 @@ export class NotionOAuthService {
         results: NotionBlock[];
         has_more: boolean;
         next_cursor: string | null;
-      }>(
-        `https://api.notion.com/v1/blocks/${pageId}/children`,
-        {
-          params,
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Notion-Version': '2022-06-28',
-          },
+      }>(`https://api.notion.com/v1/blocks/${pageId}/children`, {
+        params,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Notion-Version": "2022-06-28",
         },
-      ),
+      }),
     );
 
     return {
@@ -250,9 +253,13 @@ export class NotionOAuthService {
   async getDatabases(
     accessToken: string,
     cursor?: string,
-  ): Promise<{ databases: NotionDatabase[]; hasMore: boolean; nextCursor?: string }> {
+  ): Promise<{
+    databases: NotionDatabase[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
     const body: Record<string, any> = {
-      filter: { property: 'object', value: 'database' },
+      filter: { property: "object", value: "database" },
       page_size: 100,
     };
     if (cursor) body.start_cursor = cursor;
@@ -262,17 +269,13 @@ export class NotionOAuthService {
         results: NotionDatabase[];
         has_more: boolean;
         next_cursor: string | null;
-      }>(
-        'https://api.notion.com/v1/search',
-        body,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Notion-Version': '2022-06-28',
-            'Content-Type': 'application/json',
-          },
+      }>("https://api.notion.com/v1/search", body, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Notion-Version": "2022-06-28",
+          "Content-Type": "application/json",
         },
-      ),
+      }),
     );
 
     return {

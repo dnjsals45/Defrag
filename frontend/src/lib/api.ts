@@ -113,11 +113,11 @@ export const itemApi = {
     api.get(`/workspaces/${workspaceId}/items`, { params }),
   get: (workspaceId: string, itemId: string) =>
     api.get(`/workspaces/${workspaceId}/items/${itemId}`),
-  create: (workspaceId: string, data: { url: string }) =>
+  create: (workspaceId: string, data: { urls: string[] }) =>
     api.post(`/workspaces/${workspaceId}/items`, data),
   delete: (workspaceId: string, itemId: string) =>
     api.delete(`/workspaces/${workspaceId}/items/${itemId}`),
-  sync: (workspaceId: string, options?: { providers?: string[]; syncType?: 'full' | 'incremental' }) =>
+  sync: (workspaceId: string, options?: { providers?: string[]; syncType?: 'full' | 'incremental'; targetItems?: string[] }) =>
     api.post(`/workspaces/${workspaceId}/items/sync`, options),
   syncStatus: (workspaceId: string) =>
     api.get(`/workspaces/${workspaceId}/items/sync/status`),
@@ -129,6 +129,14 @@ export const searchApi = {
     api.post(`/workspaces/${workspaceId}/search`, data),
   ask: (workspaceId: string, data: { question: string; includeContext?: boolean }) =>
     api.post(`/workspaces/${workspaceId}/ask`, data),
+};
+
+// Invitation API
+export const invitationApi = {
+  list: () => api.get('/invitations'),
+  count: () => api.get('/invitations/count'),
+  accept: (id: string) => api.post(`/invitations/${id}/accept`),
+  reject: (id: string) => api.post(`/invitations/${id}/reject`),
 };
 
 // Conversation API

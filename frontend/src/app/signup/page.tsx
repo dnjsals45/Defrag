@@ -38,7 +38,7 @@ export default function SignupPage() {
     try {
       await signup(data.email, data.password, data.nickname);
       router.push('/dashboard');
-    } catch (err: any) {
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       setError(err.response?.data?.message || '회원가입에 실패했습니다');
     } finally {
       setIsLoading(false);

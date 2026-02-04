@@ -32,7 +32,7 @@ export interface Connection {
 export interface Integration {
   provider: 'github' | 'slack' | 'notion';
   connected: boolean;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   connectedAt?: string;
 }
 
@@ -64,4 +64,15 @@ export interface AskResponse {
     sourceUrl?: string;
     relevantSnippet: string;
   }[];
+}
+
+export interface WorkspaceInvitation {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  inviterNickname: string;
+  role: 'ADMIN' | 'MEMBER';
+  status: 'pending' | 'accepted' | 'rejected' | 'expired';
+  createdAt: string;
+  expiresAt: string;
 }

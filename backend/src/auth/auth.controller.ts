@@ -8,21 +8,21 @@ import {
   Query,
   Res,
   BadRequestException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
-import { AuthService } from './auth.service';
-import { SignUpDto } from './dto/signup.dto';
-import { LoginDto } from './dto/login.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { GoogleOAuthService } from '../oauth/providers/google.service';
-import { KakaoOAuthService } from '../oauth/providers/kakao.service';
-import { OAuthStateService } from '../oauth/oauth-state.service';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Response } from "express";
+import { AuthService } from "./auth.service";
+import { SignUpDto } from "./dto/signup.dto";
+import { LoginDto } from "./dto/login.dto";
+import { RefreshTokenDto } from "./dto/refresh-token.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import { GoogleOAuthService } from "../oauth/providers/google.service";
+import { KakaoOAuthService } from "../oauth/providers/kakao.service";
+import { OAuthStateService } from "../oauth/oauth-state.service";
 
-@Controller('auth')
+@Controller("auth")
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -32,22 +32,22 @@ export class AuthController {
     private readonly oauthStateService: OAuthStateService,
   ) {}
 
-  @Post('signup')
+  @Post("signup")
   async signUp(@Body() signUpDto: SignUpDto) {
     return this.authService.signUp(signUpDto);
   }
 
-  @Post('login')
+  @Post("login")
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
 
-  @Post('refresh')
+  @Post("refresh")
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refreshTokens(refreshTokenDto.refreshToken);
   }
 
-  @Get('me')
+  @Get("me")
   @UseGuards(JwtAuthGuard)
   async me(@Request() req: any) {
     return {
@@ -60,40 +60,46 @@ export class AuthController {
   }
 
   // Google OAuth
-  @Get('google')
+  @Get("google")
   async googleAuth(@Res() res: Response) {
-    const state = await this.oauthStateService.generateState({ provider: 'google' });
+    const state = await this.oauthStateService.generateState({
+      provider: "google",
+    });
     const authUrl = this.googleOAuthService.getAuthorizationUrl(state);
     res.redirect(authUrl);
   }
 
-  @Get('google/callback')
+  @Get("google/callback")
   async googleCallback(
-    @Query('code') code: string,
-    @Query('state') state: string,
+    @Query("code") code: string,
+    @Query("state") state: string,
     @Res() res: Response,
   ) {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get("FRONTEND_URL") || "http://localhost:3000";
 
     try {
       // Validate state
       const stateData = await this.oauthStateService.validateState(state);
-      if (!stateData || stateData.provider !== 'google') {
-        throw new BadRequestException('Invalid state');
+      if (!stateData || stateData.provider !== "google") {
+        throw new BadRequestException("Invalid state");
       }
 
       // Exchange code for token
-      const tokenResponse = await this.googleOAuthService.exchangeCodeForToken(code);
+      const tokenResponse =
+        await this.googleOAuthService.exchangeCodeForToken(code);
 
       // Get user info
-      const googleUser = await this.googleOAuthService.getUser(tokenResponse.access_token);
+      const googleUser = await this.googleOAuthService.getUser(
+        tokenResponse.access_token,
+      );
 
       // Validate social login and get/create user
       const result = await this.authService.validateSocialLogin(
-        'google',
+        "google",
         googleUser.id,
         googleUser.email,
-        googleUser.name || googleUser.email.split('@')[0],
+        googleUser.name || googleUser.email.split("@")[0],
         googleUser.picture,
       );
 
@@ -106,7 +112,7 @@ export class AuthController {
 
       res.redirect(`${frontendUrl}/auth/callback?${params.toString()}`);
     } catch (error: any) {
-      console.error('Google OAuth error:', {
+      console.error("Google OAuth error:", {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
@@ -116,46 +122,53 @@ export class AuthController {
   }
 
   // Kakao OAuth
-  @Get('kakao')
+  @Get("kakao")
   async kakaoAuth(@Res() res: Response) {
-    const state = await this.oauthStateService.generateState({ provider: 'kakao' });
+    const state = await this.oauthStateService.generateState({
+      provider: "kakao",
+    });
     const authUrl = this.kakaoOAuthService.getAuthorizationUrl(state);
     res.redirect(authUrl);
   }
 
-  @Get('kakao/callback')
+  @Get("kakao/callback")
   async kakaoCallback(
-    @Query('code') code: string,
-    @Query('state') state: string,
+    @Query("code") code: string,
+    @Query("state") state: string,
     @Res() res: Response,
   ) {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get("FRONTEND_URL") || "http://localhost:3000";
 
     try {
       // Validate state
       const stateData = await this.oauthStateService.validateState(state);
-      if (!stateData || stateData.provider !== 'kakao') {
-        throw new BadRequestException('Invalid state');
+      if (!stateData || stateData.provider !== "kakao") {
+        throw new BadRequestException("Invalid state");
       }
 
       // Exchange code for token
-      const tokenResponse = await this.kakaoOAuthService.exchangeCodeForToken(code);
+      const tokenResponse =
+        await this.kakaoOAuthService.exchangeCodeForToken(code);
 
       // Get user info
-      const kakaoUser = await this.kakaoOAuthService.getUser(tokenResponse.access_token);
+      const kakaoUser = await this.kakaoOAuthService.getUser(
+        tokenResponse.access_token,
+      );
 
       // Extract user info from Kakao response
       const email = kakaoUser.kakao_account?.email;
-      const nickname = kakaoUser.kakao_account?.profile?.nickname || `kakao_${kakaoUser.id}`;
+      const nickname =
+        kakaoUser.kakao_account?.profile?.nickname || `kakao_${kakaoUser.id}`;
       const profileImage = kakaoUser.kakao_account?.profile?.profile_image_url;
 
       if (!email) {
-        throw new BadRequestException('이메일 제공 동의가 필요합니다');
+        throw new BadRequestException("이메일 제공 동의가 필요합니다");
       }
 
       // Validate social login and get/create user
       const result = await this.authService.validateSocialLogin(
-        'kakao',
+        "kakao",
         String(kakaoUser.id),
         email,
         nickname,
@@ -171,23 +184,23 @@ export class AuthController {
 
       res.redirect(`${frontendUrl}/auth/callback?${params.toString()}`);
     } catch (error) {
-      console.error('Kakao OAuth error:', error);
+      console.error("Kakao OAuth error:", error);
       res.redirect(`${frontendUrl}/login?error=oauth_failed`);
     }
   }
 
-  @Post('forgot-password')
+  @Post("forgot-password")
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
-  @Post('reset-password')
+  @Post("reset-password")
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
   }
 
-  @Get('verify-reset-token')
-  async verifyResetToken(@Query('token') token: string) {
+  @Get("verify-reset-token")
+  async verifyResetToken(@Query("token") token: string) {
     return this.authService.verifyResetToken(token);
   }
 }

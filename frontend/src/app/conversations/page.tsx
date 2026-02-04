@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Plus, Send, Trash2, MessageSquare, ExternalLink, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -33,8 +34,10 @@ interface Conversation {
   messages?: ConversationMessage[];
 }
 
-export default function ConversationsPage() {
+function ConversationsPageContent() {
   const { currentWorkspace } = useWorkspaceStore();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,11 +46,22 @@ export default function ConversationsPage() {
   const [question, setQuestion] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const conversationIdFromUrl = searchParams.get('id');
+
   useEffect(() => {
     if (currentWorkspace) {
       loadConversations();
     }
   }, [currentWorkspace]);
+
+  // URL에서 대화 ID가 있으면 해당 대화 로드
+  useEffect(() => {
+    if (conversationIdFromUrl && currentWorkspace && conversations.length > 0) {
+      // 이미 선택된 대화와 같으면 스킵
+      if (selectedConversation?.id === conversationIdFromUrl) return;
+      loadConversation(conversationIdFromUrl);
+    }
+  }, [conversationIdFromUrl, currentWorkspace, conversations]);
 
   useEffect(() => {
     scrollToBottom();
@@ -87,6 +101,8 @@ export default function ConversationsPage() {
       const { data } = await conversationApi.create(currentWorkspace.id);
       setConversations((prev) => [data, ...prev]);
       setSelectedConversation({ ...data, messages: [] });
+      // URL에 새 대화 ID 반영
+      router.push(`/conversations?id=${data.id}`, { scroll: false });
     } catch (error) {
       console.error('Failed to create conversation:', error);
     } finally {
@@ -102,6 +118,8 @@ export default function ConversationsPage() {
       setConversations((prev) => prev.filter((c) => c.id !== conversationId));
       if (selectedConversation?.id === conversationId) {
         setSelectedConversation(null);
+        // URL에서 대화 ID 제거
+        router.push('/conversations', { scroll: false });
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
@@ -243,7 +261,7 @@ export default function ConversationsPage() {
                       'group flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors',
                       selectedConversation?.id === conversation.id && 'bg-blue-50'
                     )}
-                    onClick={() => loadConversation(conversation.id)}
+                    onClick={() => router.push(`/conversations?id=${conversation.id}`, { scroll: false })}
                   >
                     <MessageSquare className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -310,7 +328,7 @@ export default function ConversationsPage() {
                       {message.role === 'user' ? (
                         <p className="whitespace-pre-wrap">{message.content}</p>
                       ) : (
-                        <div className="prose prose-sm max-w-none prose-gray prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-gray-800 prose-pre:text-gray-100 prose-code:text-purple-600 prose-code:bg-purple-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
+                        <div className="prose prose-sm max-w-none prose-gray prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-gray-800 prose-pre:text-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto [&_pre_code]:text-gray-100 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&>code]:text-purple-600 [&>code]:bg-purple-50 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&_p_code]:text-purple-600 [&_p_code]:bg-purple-50 [&_p_code]:px-1 [&_p_code]:py-0.5 [&_p_code]:rounded [&_li_code]:text-purple-600 [&_li_code]:bg-purple-50 [&_li_code]:px-1 [&_li_code]:py-0.5 [&_li_code]:rounded prose-code:before:content-none prose-code:after:content-none">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {message.content}
                           </ReactMarkdown>
@@ -324,19 +342,24 @@ export default function ConversationsPage() {
                             참고 문서:
                           </p>
                           <div className="space-y-1">
-                            {message.sources.slice(0, 3).map((source) => (
-                              <a
-                                key={source.id}
-                                href={source.sourceUrl || '#'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-xs text-gray-600 hover:text-blue-600"
-                              >
-                                <span>{getSourceIcon(source.sourceType)}</span>
-                                <span className="truncate flex-1">{source.title}</span>
-                                <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                              </a>
-                            ))}
+                            {message.sources
+                              .filter((source, index, self) =>
+                                self.findIndex(s => s.id === source.id) === index
+                              )
+                              .slice(0, 3)
+                              .map((source, index) => (
+                                <a
+                                  key={`${source.id}-${index}`}
+                                  href={source.sourceUrl || '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 text-xs text-gray-600 hover:text-blue-600"
+                                >
+                                  <span>{getSourceIcon(source.sourceType)}</span>
+                                  <span className="truncate flex-1">{source.title}</span>
+                                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                </a>
+                              ))}
                           </div>
                         </div>
                       )}
@@ -387,5 +410,19 @@ export default function ConversationsPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function ConversationsPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      </AppLayout>
+    }>
+      <ConversationsPageContent />
+    </Suspense>
   );
 }

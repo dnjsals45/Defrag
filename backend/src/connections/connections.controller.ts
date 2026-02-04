@@ -9,19 +9,22 @@ import {
   Res,
   UnauthorizedException,
   BadRequestException,
-} from '@nestjs/common';
-import { Response } from 'express';
-import { ConfigService } from '@nestjs/config';
-import { ConnectionsService } from './connections.service';
-import { IntegrationsService } from '../integrations/integrations.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { Provider } from '../database/entities/user-connection.entity';
-import { OAuthStateService } from '../oauth/oauth-state.service';
-import { GitHubOAuthService } from '../oauth/providers/github.service';
-import { SlackOAuthService, SlackChannel } from '../oauth/providers/slack.service';
-import { NotionOAuthService } from '../oauth/providers/notion.service';
+} from "@nestjs/common";
+import { Response } from "express";
+import { ConfigService } from "@nestjs/config";
+import { ConnectionsService } from "./connections.service";
+import { IntegrationsService } from "../integrations/integrations.service";
+import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import { Provider } from "../database/entities/user-connection.entity";
+import { OAuthStateService } from "../oauth/oauth-state.service";
+import { GitHubOAuthService } from "../oauth/providers/github.service";
+import {
+  SlackOAuthService,
+  SlackChannel,
+} from "../oauth/providers/slack.service";
+import { NotionOAuthService } from "../oauth/providers/notion.service";
 
-@Controller('connections')
+@Controller("connections")
 export class ConnectionsController {
   constructor(
     private readonly connectionsService: ConnectionsService,
@@ -31,20 +34,22 @@ export class ConnectionsController {
     private readonly githubOAuth: GitHubOAuthService,
     private readonly slackOAuth: SlackOAuthService,
     private readonly notionOAuth: NotionOAuthService,
-  ) { }
+  ) {}
 
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(@Request() req: any) {
-    const connections = await this.connectionsService.findAllByUser(req.user.id);
+    const connections = await this.connectionsService.findAllByUser(
+      req.user.id,
+    );
     return { connections };
   }
 
-  @Get(':provider/auth')
+  @Get(":provider/auth")
   @UseGuards(JwtAuthGuard)
   async startAuth(
     @Request() req: any,
-    @Param('provider') provider: Provider,
+    @Param("provider") provider: Provider,
     @Res() res: Response,
   ) {
     const state = await this.oauthStateService.generateState({
@@ -64,21 +69,21 @@ export class ConnectionsController {
         authUrl = this.notionOAuth.getAuthorizationUrl(state);
         break;
       default:
-        throw new BadRequestException('Invalid provider');
+        throw new BadRequestException("Invalid provider");
     }
 
     return res.redirect(authUrl);
   }
 
-  @Get(':provider/callback')
+  @Get(":provider/callback")
   async handleCallback(
-    @Param('provider') provider: Provider,
-    @Query('code') code: string,
-    @Query('state') state: string,
-    @Query('error') error: string,
+    @Param("provider") provider: Provider,
+    @Query("code") code: string,
+    @Query("state") state: string,
+    @Query("error") error: string,
     @Res() res: Response,
   ) {
-    const frontendUrl = this.configService.get('FRONTEND_URL');
+    const frontendUrl = this.configService.get("FRONTEND_URL");
     const redirectBase = `${frontendUrl}/settings/connections`;
 
     if (error) {
@@ -125,14 +130,18 @@ export class ConnectionsController {
             await this.handleNotionCallback(stateData.userId, code);
             break;
           default:
-            throw new BadRequestException('Invalid provider');
+            throw new BadRequestException("Invalid provider");
         }
       }
 
-      return res.redirect(`${redirectBase}?success=true&provider=${provider}`);
+      return res.redirect(
+        `${redirectBase}?success=true&provider=${provider}&openSettings=${provider}`,
+      );
     } catch (err: any) {
       console.error(`OAuth callback error (${provider}):`, err.message);
-      return res.redirect(`${redirectBase}?error=${encodeURIComponent(err.message)}`);
+      return res.redirect(
+        `${redirectBase}?error=${encodeURIComponent(err.message)}`,
+      );
     }
   }
 
@@ -153,7 +162,7 @@ export class ConnectionsController {
         await this.handleWorkspaceNotionCallback(workspaceId, userId, code);
         break;
       default:
-        throw new BadRequestException('Invalid provider');
+        throw new BadRequestException("Invalid provider");
     }
   }
 
@@ -167,17 +176,22 @@ export class ConnectionsController {
     // Fetch available repositories
     const repos = await this.fetchAllGitHubRepos(tokenData.access_token);
 
-    await this.integrationsService.upsert(workspaceId, userId, Provider.GITHUB, {
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token || undefined,
-      tokenExpiresAt: tokenData.expires_in
-        ? new Date(Date.now() + tokenData.expires_in * 1000)
-        : undefined,
-      config: {
-        availableRepos: repos,
-        selectedRepos: [],
+    await this.integrationsService.upsert(
+      workspaceId,
+      userId,
+      Provider.GITHUB,
+      {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || undefined,
+        tokenExpiresAt: tokenData.expires_in
+          ? new Date(Date.now() + tokenData.expires_in * 1000)
+          : undefined,
+        config: {
+          availableRepos: repos,
+          selectedRepos: [],
+        },
       },
-    });
+    );
   }
 
   private async handleWorkspaceSlackCallback(
@@ -186,15 +200,24 @@ export class ConnectionsController {
     code: string,
   ) {
     const tokenData = await this.slackOAuth.exchangeCodeForToken(code);
-    // Get available channels
-    const channels = await this.fetchAllSlackChannels(tokenData.access_token);
+
+    // Use user's access token (not bot token) - allows access to channels user is member of
+    const userAccessToken =
+      tokenData.authed_user?.access_token || tokenData.access_token;
+
+    if (!userAccessToken) {
+      throw new Error("No access token received from Slack");
+    }
+
+    // Get available channels using user token
+    const channels = await this.fetchAllSlackChannels(userAccessToken);
 
     await this.integrationsService.upsert(workspaceId, userId, Provider.SLACK, {
-      accessToken: tokenData.access_token,
+      accessToken: userAccessToken,
       config: {
         teamId: tokenData.team.id,
         teamName: tokenData.team.name,
-        botUserId: tokenData.bot_user_id,
+        authedUserId: tokenData.authed_user?.id,
         availableChannels: channels,
         selectedChannels: [],
       },
@@ -209,21 +232,32 @@ export class ConnectionsController {
     const tokenData = await this.notionOAuth.exchangeCodeForToken(code);
     const pages = await this.fetchAllNotionPages(tokenData.access_token);
 
-    await this.integrationsService.upsert(workspaceId, userId, Provider.NOTION, {
-      accessToken: tokenData.access_token,
-      config: {
-        notionWorkspaceId: tokenData.workspace_id,
-        notionWorkspaceName: tokenData.workspace_name,
-        availablePages: pages,
-        selectedPages: [],
+    await this.integrationsService.upsert(
+      workspaceId,
+      userId,
+      Provider.NOTION,
+      {
+        accessToken: tokenData.access_token,
+        config: {
+          notionWorkspaceId: tokenData.workspace_id,
+          notionWorkspaceName: tokenData.workspace_name,
+          availablePages: pages,
+          selectedPages: [],
+        },
       },
-    });
+    );
   }
 
   private async fetchAllNotionPages(
     accessToken: string,
-  ): Promise<{ id: string; title: string; icon?: { type: string; emoji?: string } }[]> {
-    const pages: { id: string; title: string; icon?: { type: string; emoji?: string } }[] = [];
+  ): Promise<
+    { id: string; title: string; icon?: { type: string; emoji?: string } }[]
+  > {
+    const pages: {
+      id: string;
+      title: string;
+      icon?: { type: string; emoji?: string };
+    }[] = [];
     let cursor: string | undefined;
 
     while (true) {
@@ -231,8 +265,10 @@ export class ConnectionsController {
 
       pages.push(
         ...result.pages.map((page) => {
-          const titleProp = Object.values(page.properties).find((p: any) => p.title);
-          const title = titleProp?.title?.[0]?.plain_text || 'Untitled';
+          const titleProp = Object.values(page.properties).find(
+            (p: any) => p.title,
+          );
+          const title = titleProp?.title?.[0]?.plain_text || "Untitled";
           return {
             id: page.id,
             title,
@@ -256,7 +292,10 @@ export class ConnectionsController {
     const perPage = 100;
 
     while (true) {
-      const { data } = await this.githubOAuth.getRepos(accessToken, { page, perPage });
+      const { data } = await this.githubOAuth.getRepos(accessToken, {
+        page,
+        perPage,
+      });
       repos.push(
         ...data.map((repo) => ({
           id: repo.id,
@@ -279,10 +318,13 @@ export class ConnectionsController {
     let cursor: string | undefined;
 
     while (true) {
-      const { data } = await this.slackOAuth.getChannelsWithPagination(accessToken, {
-        limit: 200,
-        cursor,
-      });
+      const { data } = await this.slackOAuth.getChannelsWithPagination(
+        accessToken,
+        {
+          limit: 200,
+          cursor,
+        },
+      );
 
       channels.push(...data);
 
@@ -335,12 +377,9 @@ export class ConnectionsController {
     });
   }
 
-  @Delete(':provider')
+  @Delete(":provider")
   @UseGuards(JwtAuthGuard)
-  async disconnect(
-    @Request() req: any,
-    @Param('provider') provider: Provider,
-  ) {
+  async disconnect(@Request() req: any, @Param("provider") provider: Provider) {
     await this.connectionsService.delete(req.user.id, provider);
     return { success: true };
   }

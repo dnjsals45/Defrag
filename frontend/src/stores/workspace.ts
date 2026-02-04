@@ -29,8 +29,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const workspaces = data.workspaces;
       set({ workspaces, isLoading: false });
 
-      // Auto-select first workspace if none selected
-      if (!get().currentWorkspace && workspaces.length > 0) {
+      // Restore from localStorage or auto-select first workspace
+      const currentWs = get().currentWorkspace;
+      const savedId = typeof window !== 'undefined' ? localStorage.getItem('currentWorkspaceId') : null;
+
+      if (savedId) {
+        // Find workspace with saved ID and use fresh data (including updated role)
+        const savedWorkspace = workspaces.find((ws: Workspace) => ws.id === savedId);
+        if (savedWorkspace) {
+          set({ currentWorkspace: savedWorkspace });
+        } else if (!currentWs && workspaces.length > 0) {
+          // Saved workspace no longer exists, select first
+          set({ currentWorkspace: workspaces[0] });
+        }
+      } else if (!currentWs && workspaces.length > 0) {
+        // No saved ID, select first workspace
         set({ currentWorkspace: workspaces[0] });
       }
     } catch {

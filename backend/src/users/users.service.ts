@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User, AuthProvider } from '../database/entities/user.entity';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { User, AuthProvider } from "../database/entities/user.entity";
 
 @Injectable()
 export class UsersService {
@@ -20,7 +20,7 @@ export class UsersService {
   }): Promise<User> {
     const user = this.usersRepository.create({
       ...data,
-      authProvider: data.authProvider || 'local',
+      authProvider: data.authProvider || "local",
     });
     return this.usersRepository.save(user);
   }
@@ -37,7 +37,10 @@ export class UsersService {
     });
   }
 
-  async findByProviderId(provider: AuthProvider, providerId: string): Promise<User | null> {
+  async findByProviderId(
+    provider: AuthProvider,
+    providerId: string,
+  ): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { authProvider: provider, providerId },
     });

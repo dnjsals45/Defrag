@@ -1,9 +1,10 @@
-import { SourceType } from '../../database/entities/context-item.entity';
+import { SourceType } from "../../database/entities/context-item.entity";
 import {
   GitHubIssue,
   GitHubPullRequest,
   GitHubCommit,
-} from '../../oauth/providers/github.service';
+  GitHubFileContent,
+} from "../../oauth/providers/github.service";
 
 export interface TransformedItem {
   externalId: string;
@@ -13,16 +14,20 @@ export interface TransformedItem {
   sourceUrl: string;
   metadata: Record<string, any>;
   importanceScore: number;
+  createdAt?: Date;
 }
 
 export class GitHubTransformer {
-  static transformIssue(issue: GitHubIssue, repoFullName: string): TransformedItem {
+  static transformIssue(
+    issue: GitHubIssue,
+    repoFullName: string,
+  ): TransformedItem {
     const content = [
-      issue.body || '',
+      issue.body || "",
       `State: ${issue.state}`,
-      `Labels: ${issue.labels.map((l) => l.name).join(', ') || 'none'}`,
+      `Labels: ${issue.labels.map((l) => l.name).join(", ") || "none"}`,
       `Comments: ${issue.comments}`,
-    ].join('\n\n');
+    ].join("\n\n");
 
     return {
       externalId: `github:issue:${repoFullName}:${issue.number}`,
@@ -42,17 +47,21 @@ export class GitHubTransformer {
         closedAt: issue.closed_at,
       },
       importanceScore: GitHubTransformer.calculateIssueImportance(issue),
+      createdAt: new Date(issue.created_at),
     };
   }
 
-  static transformPullRequest(pr: GitHubPullRequest, repoFullName: string): TransformedItem {
+  static transformPullRequest(
+    pr: GitHubPullRequest,
+    repoFullName: string,
+  ): TransformedItem {
     const content = [
-      pr.body || '',
-      `State: ${pr.state}${pr.merged_at ? ' (merged)' : ''}`,
+      pr.body || "",
+      `State: ${pr.state}${pr.merged_at ? " (merged)" : ""}`,
       `Branch: ${pr.head.ref} → ${pr.base.ref}`,
       `Changes: +${pr.additions} -${pr.deletions} in ${pr.changed_files} files`,
-      `Labels: ${pr.labels.map((l) => l.name).join(', ') || 'none'}`,
-    ].join('\n\n');
+      `Labels: ${pr.labels.map((l) => l.name).join(", ") || "none"}`,
+    ].join("\n\n");
 
     return {
       externalId: `github:pr:${repoFullName}:${pr.number}`,
@@ -80,13 +89,17 @@ export class GitHubTransformer {
         mergedAt: pr.merged_at,
       },
       importanceScore: GitHubTransformer.calculatePRImportance(pr),
+      createdAt: new Date(pr.created_at),
     };
   }
 
-  static transformCommit(commit: GitHubCommit, repoFullName: string): TransformedItem {
-    const messageLines = commit.commit.message.split('\n');
+  static transformCommit(
+    commit: GitHubCommit,
+    repoFullName: string,
+  ): TransformedItem {
+    const messageLines = commit.commit.message.split("\n");
     const title = messageLines[0];
-    const body = messageLines.slice(1).join('\n').trim();
+    const body = messageLines.slice(1).join("\n").trim();
 
     return {
       externalId: `github:commit:${repoFullName}:${commit.sha}`,
@@ -103,7 +116,59 @@ export class GitHubTransformer {
         date: commit.commit.author.date,
       },
       importanceScore: GitHubTransformer.calculateCommitImportance(commit),
+      createdAt: new Date(commit.commit.author.date),
     };
+  }
+
+  static transformDocument(
+    file: GitHubFileContent,
+    repoFullName: string,
+  ): TransformedItem {
+    // Extract title from first H1 heading or use filename
+    const h1Match = file.content.match(/^#\s+(.+)$/m);
+    const title = h1Match ? h1Match[1] : file.name.replace(/\.md$/i, "");
+
+    return {
+      externalId: `github:doc:${repoFullName}:${file.path}`,
+      sourceType: SourceType.GITHUB_DOC,
+      title: `[${repoFullName}] ${title}`,
+      content: file.content,
+      sourceUrl: file.html_url,
+      metadata: {
+        repo: repoFullName,
+        path: file.path,
+        filename: file.name,
+        sha: file.sha,
+        size: file.size,
+      },
+      importanceScore: GitHubTransformer.calculateDocImportance(file),
+      // For docs, we don't have a creation date from the API, so we skip it
+      // TypeORM will use current time
+    };
+  }
+
+  private static calculateDocImportance(file: GitHubFileContent): number {
+    let score = 0.6;
+    const name = file.name.toLowerCase();
+    const path = file.path.toLowerCase();
+
+    // README files are very important
+    if (name === "readme.md") score += 0.3;
+
+    // Documentation in docs folder is important
+    if (path.startsWith("docs/")) score += 0.1;
+
+    // API documentation
+    if (name.includes("api") || path.includes("api")) score += 0.1;
+
+    // Contributing, changelog, etc.
+    if (name === "contributing.md" || name === "changelog.md") score += 0.15;
+
+    // Longer documents have more content
+    if (file.size > 10000) score += 0.1;
+    else if (file.size > 5000) score += 0.05;
+
+    return Math.min(score, 1.0);
   }
 
   private static calculateIssueImportance(issue: GitHubIssue): number {
@@ -114,14 +179,20 @@ export class GitHubTransformer {
     else if (issue.comments > 5) score += 0.1;
 
     // Labels affect importance
-    const importantLabels = ['bug', 'critical', 'urgent', 'security', 'breaking'];
+    const importantLabels = [
+      "bug",
+      "critical",
+      "urgent",
+      "security",
+      "breaking",
+    ];
     const hasImportantLabel = issue.labels.some((l) =>
       importantLabels.some((il) => l.name.toLowerCase().includes(il)),
     );
     if (hasImportantLabel) score += 0.2;
 
     // Open issues are slightly more important
-    if (issue.state === 'open') score += 0.1;
+    if (issue.state === "open") score += 0.1;
 
     return Math.min(score, 1.0);
   }
@@ -148,13 +219,14 @@ export class GitHubTransformer {
     const message = commit.commit.message.toLowerCase();
 
     // Important commit types
-    if (message.startsWith('fix:') || message.includes('bugfix')) score += 0.2;
-    if (message.startsWith('feat:') || message.includes('feature')) score += 0.15;
-    if (message.includes('breaking') || message.includes('major')) score += 0.2;
-    if (message.includes('security')) score += 0.25;
+    if (message.startsWith("fix:") || message.includes("bugfix")) score += 0.2;
+    if (message.startsWith("feat:") || message.includes("feature"))
+      score += 0.15;
+    if (message.includes("breaking") || message.includes("major")) score += 0.2;
+    if (message.includes("security")) score += 0.25;
 
     // Merge commits are less important
-    if (message.startsWith('merge')) score -= 0.2;
+    if (message.startsWith("merge")) score -= 0.2;
 
     return Math.max(0.1, Math.min(score, 1.0));
   }

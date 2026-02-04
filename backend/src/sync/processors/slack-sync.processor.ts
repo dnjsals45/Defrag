@@ -1,20 +1,27 @@
-import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { Job, Queue } from 'bullmq';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { SlackOAuthService, SlackChannel } from '../../oauth/providers/slack.service';
-import { IntegrationsService } from '../../integrations/integrations.service';
-import { ContextItem, SourceType } from '../../database/entities/context-item.entity';
-import { Provider } from '../../database/entities/user-connection.entity';
-import { SlackTransformer } from '../transformers/slack.transformer';
+import { Processor, WorkerHost, InjectQueue } from "@nestjs/bullmq";
+import { Logger } from "@nestjs/common";
+import { Job, Queue } from "bullmq";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  SlackOAuthService,
+  SlackChannel,
+} from "../../oauth/providers/slack.service";
+import { IntegrationsService } from "../../integrations/integrations.service";
+import {
+  ContextItem,
+  SourceType,
+} from "../../database/entities/context-item.entity";
+import { Provider } from "../../database/entities/user-connection.entity";
+import { SlackTransformer } from "../transformers/slack.transformer";
 
 export interface SlackSyncJobData {
   workspaceId: string;
   userId: string;
-  syncType: 'full' | 'incremental';
+  syncType: "full" | "incremental";
   oldest?: string;
   channelIds?: string[];
+  targetItems?: string[]; // 특정 채널만 동기화
 }
 
 export interface SlackSyncResult {
@@ -22,7 +29,7 @@ export interface SlackSyncResult {
   errors: string[];
 }
 
-@Processor('slack-sync')
+@Processor("slack-sync")
 export class SlackSyncProcessor extends WorkerHost {
   private readonly logger = new Logger(SlackSyncProcessor.name);
   private readonly RATE_LIMIT_DELAY = 350; // Slack Tier 2 rate limit
@@ -33,64 +40,104 @@ export class SlackSyncProcessor extends WorkerHost {
     private readonly integrationsService: IntegrationsService,
     @InjectRepository(ContextItem)
     private readonly itemsRepository: Repository<ContextItem>,
-    @InjectQueue('embedding')
+    @InjectQueue("embedding")
     private readonly embeddingQueue: Queue,
   ) {
     super();
   }
 
   async process(job: Job<SlackSyncJobData>): Promise<SlackSyncResult> {
-    const { workspaceId, syncType, oldest, channelIds } = job.data;
-    this.logger.log(`Starting Slack sync for workspace ${workspaceId} (${syncType})`);
+    const { workspaceId, syncType, oldest, channelIds, targetItems } = job.data;
+    this.logger.log(
+      `Starting Slack sync for workspace ${workspaceId} (${syncType})`,
+    );
 
     const result: SlackSyncResult = { itemsSynced: 0, errors: [] };
     this.syncedItemIds = [];
 
     try {
-      const accessToken = await this.integrationsService.getDecryptedAccessToken(
-        workspaceId,
-        Provider.SLACK,
-      );
+      const accessToken =
+        await this.integrationsService.getDecryptedAccessToken(
+          workspaceId,
+          Provider.SLACK,
+        );
 
       if (!accessToken) {
-        result.errors.push('Slack integration not found or token invalid');
+        result.errors.push("Slack integration not found or token invalid");
         return result;
       }
 
       // Get team domain from config for building URLs
       const teamDomain = await this.getTeamDomain(workspaceId);
 
-      // Get selected channels from workspace config
-      const selectedChannelIds = await this.integrationsService.getSlackSelectedChannels(workspaceId);
+      // Get channels to sync - either targetItems or all selected channels
+      let channelIdsToSync: string[];
 
-      if (!selectedChannelIds || selectedChannelIds.length === 0) {
-        result.errors.push('No channels selected for sync');
-        return result;
+      if (targetItems && targetItems.length > 0) {
+        // 특정 채널만 동기화
+        channelIdsToSync = targetItems;
+        this.logger.log(
+          `Syncing specific channels: ${channelIdsToSync.join(", ")}`,
+        );
+      } else {
+        // 전체 선택된 채널 동기화
+        const selectedChannelIds =
+          await this.integrationsService.getSlackSelectedChannels(workspaceId);
+        if (!selectedChannelIds || selectedChannelIds.length === 0) {
+          result.errors.push("No channels selected for sync");
+          return result;
+        }
+        channelIdsToSync = selectedChannelIds;
       }
 
-      // Get channel details for selected channels
-      // We need to fetch all channels to get details (name, is_member, etc)
-      // Optimization: we could just fetch info for specific channels if Slack API supports it well,
-      // but getChannels is cached/efficient enough involved. 
-      // Actually, SlackOAuthService.getChannels fetches all.
+      // Get channel details for channels to sync
       const allChannels = await this.slackService.getChannels(accessToken);
-      const channels = allChannels.filter((c) => selectedChannelIds.includes(c.id));
+      const selectedChannels = allChannels.filter((c) =>
+        channelIdsToSync.includes(c.id),
+      );
+
+      // Filter to only channels where the bot is a member
+      const channels = selectedChannels.filter((c) => c.is_member);
+      const notMemberChannels = selectedChannels.filter((c) => !c.is_member);
+
+      if (notMemberChannels.length > 0) {
+        const channelNames = notMemberChannels
+          .map((c) => `#${c.name}`)
+          .join(", ");
+        this.logger.warn(`Bot is not a member of channels: ${channelNames}`);
+        result.errors.push(`봇이 참여하지 않은 채널 (스킵됨): ${channelNames}`);
+      }
 
       if (channels.length === 0) {
-        result.errors.push('Selected channels not found or bot is not a member');
+        result.errors.push(
+          "동기화할 수 있는 채널이 없습니다. 봇을 채널에 초대해주세요.",
+        );
         return result;
       }
 
-      await job.updateProgress({ phase: 'fetched_channels', count: channels.length });
+      await job.updateProgress({
+        phase: "fetched_channels",
+        count: channels.length,
+      });
 
       // Sync each channel
       for (const channel of channels) {
         try {
-          await this.syncChannel(accessToken, channel, workspaceId, oldest, teamDomain, job);
+          await this.syncChannel(
+            accessToken,
+            channel,
+            workspaceId,
+            oldest,
+            teamDomain,
+            job,
+          );
           await this.delay(this.RATE_LIMIT_DELAY);
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.error(`Error syncing channel ${channel.name}: ${errorMsg}`);
+          const errorMsg =
+            error instanceof Error ? error.message : "Unknown error";
+          this.logger.error(
+            `Error syncing channel ${channel.name}: ${errorMsg}`,
+          );
           result.errors.push(`#${channel.name}: ${errorMsg}`);
         }
       }
@@ -100,14 +147,16 @@ export class SlackSyncProcessor extends WorkerHost {
 
       // Trigger embedding generation for all synced items
       if (this.syncedItemIds.length > 0) {
-        await this.embeddingQueue.add('generate', {
+        await this.embeddingQueue.add("generate", {
           itemIds: this.syncedItemIds,
           workspaceId,
         });
-        this.logger.log(`Queued embedding generation for ${this.syncedItemIds.length} items`);
+        this.logger.log(
+          `Queued embedding generation for ${this.syncedItemIds.length} items`,
+        );
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
       this.logger.error(`Slack sync failed: ${errorMsg}`);
       result.errors.push(errorMsg);
     }
@@ -144,14 +193,28 @@ export class SlackSyncProcessor extends WorkerHost {
       // Process messages
       for (const message of messages) {
         // Skip messages without text
-        if (!message.text || message.type !== 'message') continue;
+        if (!message.text || message.type !== "message") continue;
 
         // If message is a thread parent, sync the entire thread
-        if (message.thread_ts === message.ts && message.reply_count && message.reply_count > 0) {
-          await this.syncThread(accessToken, channel, message.ts, workspaceId, teamDomain);
+        if (
+          message.thread_ts === message.ts &&
+          message.reply_count &&
+          message.reply_count > 0
+        ) {
+          await this.syncThread(
+            accessToken,
+            channel,
+            message.ts,
+            workspaceId,
+            teamDomain,
+          );
         } else if (!message.thread_ts) {
           // Regular message (not a thread reply)
-          const transformed = SlackTransformer.transformMessage(message, channel, teamDomain);
+          const transformed = SlackTransformer.transformMessage(
+            message,
+            channel,
+            teamDomain,
+          );
           await this.upsertItem(workspaceId, transformed);
         }
         // Thread replies are handled by syncThread
@@ -161,7 +224,7 @@ export class SlackSyncProcessor extends WorkerHost {
 
       if (job) {
         await job.updateProgress({
-          phase: 'syncing_channel',
+          phase: "syncing_channel",
           channel: channel.name,
           messagesProcessed,
         });
@@ -184,12 +247,13 @@ export class SlackSyncProcessor extends WorkerHost {
     let cursor: string | undefined;
 
     while (true) {
-      const { messages, hasMore, nextCursor } = await this.slackService.getThreadReplies(
-        accessToken,
-        channel.id,
-        threadTs,
-        { cursor },
-      );
+      const { messages, hasMore, nextCursor } =
+        await this.slackService.getThreadReplies(
+          accessToken,
+          channel.id,
+          threadTs,
+          { cursor },
+        );
 
       allReplies.push(...messages);
 
@@ -199,7 +263,8 @@ export class SlackSyncProcessor extends WorkerHost {
     }
 
     if (allReplies.length > 0) {
-      const parentMessage = allReplies.find((m) => m.ts === threadTs) || allReplies[0];
+      const parentMessage =
+        allReplies.find((m) => m.ts === threadTs) || allReplies[0];
       const transformed = SlackTransformer.transformThread(
         parentMessage,
         allReplies,
@@ -210,7 +275,9 @@ export class SlackSyncProcessor extends WorkerHost {
     }
   }
 
-  private async getTeamDomain(workspaceId: string): Promise<string | undefined> {
+  private async getTeamDomain(
+    workspaceId: string,
+  ): Promise<string | undefined> {
     // This would typically come from the integration config
     // For now, return undefined and the transformer will skip URL generation
     return undefined;
@@ -226,6 +293,7 @@ export class SlackSyncProcessor extends WorkerHost {
       sourceUrl: string | null;
       metadata: Record<string, any>;
       importanceScore: number;
+      createdAt?: Date;
     },
   ): Promise<void> {
     const existing = await this.itemsRepository.findOne({

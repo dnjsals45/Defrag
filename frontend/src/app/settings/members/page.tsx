@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { Users, UserPlus, Shield, User, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
-import { Card, CardHeader, CardTitle, CardContent, Button, Input, Badge, Modal, Select } from '@/components/ui';
+import { Card, CardHeader, CardContent, Button, Input, Badge, Modal, Select } from '@/components/ui';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useAuthStore } from '@/stores/auth';
 import { memberApi } from '@/lib/api';
-import { formatDate } from '@/lib/utils';
+
 import type { WorkspaceMember } from '@/types';
 
 export default function MembersPage() {
@@ -51,8 +51,9 @@ export default function MembersPage() {
       });
       setShowInviteModal(false);
       setInviteEmail('');
-      await loadMembers();
-    } catch (error: any) {
+      setInviteRole('MEMBER');
+      alert('초대가 발송되었습니다');
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       setInviteError(error.response?.data?.message || '초대에 실패했습니다');
     } finally {
       setIsInviting(false);

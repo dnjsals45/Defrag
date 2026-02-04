@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
+import { firstValueFrom } from "rxjs";
 
 interface OpenAIEmbeddingResponse {
   object: string;
@@ -21,7 +21,7 @@ interface OpenAIEmbeddingResponse {
 export class EmbeddingService {
   private readonly logger = new Logger(EmbeddingService.name);
   private readonly apiKey: string;
-  private readonly model = 'text-embedding-3-small';
+  private readonly model = "text-embedding-3-small";
   private readonly dimensions = 1536;
   private readonly maxTokens = 8000;
   private readonly maxRetries = 5;
@@ -31,9 +31,9 @@ export class EmbeddingService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.apiKey = this.configService.get('OPENAI_API_KEY') || '';
+    this.apiKey = this.configService.get("OPENAI_API_KEY") || "";
     if (!this.apiKey) {
-      this.logger.warn('OPENAI_API_KEY is not set in environment variables');
+      this.logger.warn("OPENAI_API_KEY is not set in environment variables");
     }
   }
 
@@ -49,7 +49,10 @@ export class EmbeddingService {
       const response = await this.makeEmbeddingRequest([truncatedText]);
       return response.data[0].embedding;
     } catch (error) {
-      this.logger.error(`Failed to generate embedding: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to generate embedding: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -65,19 +68,22 @@ export class EmbeddingService {
     }
 
     if (texts.length > 100) {
-      throw new Error('Maximum batch size is 100 texts per request');
+      throw new Error("Maximum batch size is 100 texts per request");
     }
 
-    const truncatedTexts = texts.map(text => this.truncateText(text));
+    const truncatedTexts = texts.map((text) => this.truncateText(text));
 
     try {
       const response = await this.makeEmbeddingRequest(truncatedTexts);
       // Sort by index to ensure correct order
       return response.data
         .sort((a, b) => a.index - b.index)
-        .map(item => item.embedding);
+        .map((item) => item.embedding);
     } catch (error) {
-      this.logger.error(`Failed to generate embeddings: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to generate embeddings: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -94,7 +100,7 @@ export class EmbeddingService {
     try {
       const response = await firstValueFrom(
         this.httpService.post<OpenAIEmbeddingResponse>(
-          'https://api.openai.com/v1/embeddings',
+          "https://api.openai.com/v1/embeddings",
           {
             input: texts,
             model: this.model,
@@ -102,8 +108,8 @@ export class EmbeddingService {
           },
           {
             headers: {
-              'Authorization': `Bearer ${this.apiKey}`,
-              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.apiKey}`,
+              "Content-Type": "application/json",
             },
           },
         ),
@@ -180,6 +186,6 @@ export class EmbeddingService {
    * @param ms - Milliseconds to sleep
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Link as LinkIcon, Github, MessageSquare, FileText, Check, X, Settings } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
 import { SyncButton, SyncStatus } from '@/components/sync';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { integrationApi } from '@/lib/api';
+import { integrationApi, itemApi } from '@/lib/api';
 import type { Integration } from '@/types';
 
 interface GitHubRepo {
@@ -52,23 +53,27 @@ const providers = [
   },
 ];
 
-export default function ConnectionsPage() {
-  const { currentWorkspace } = useWorkspaceStore();
+function ConnectionsPageContent() {
+  const { currentWorkspace, isLoading: isWorkspaceLoading } = useWorkspaceStore();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showRepoSelector, setShowRepoSelector] = useState(false);
   const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
+  const [previousRepos, setPreviousRepos] = useState<string[]>([]);
   const [isSavingRepos, setIsSavingRepos] = useState(false);
   const [showChannelSelector, setShowChannelSelector] = useState(false);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [previousChannels, setPreviousChannels] = useState<string[]>([]);
   const [isSavingChannels, setIsSavingChannels] = useState(false);
   const [showPageSelector, setShowPageSelector] = useState(false);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
+  const [previousPages, setPreviousPages] = useState<string[]>([]);
   const [isSavingPages, setIsSavingPages] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  useEffect(() => {
-    loadIntegrations();
-  }, [currentWorkspace]);
+  const isAdmin = currentWorkspace?.role === 'ADMIN';
 
   const loadIntegrations = async () => {
     if (!currentWorkspace) {
@@ -86,6 +91,66 @@ export default function ConnectionsPage() {
       setIsLoading(false);
     }
   };
+
+  const handleRedirectToDashboard = () => {
+    setIsRedirecting(true);
+    router.replace('/dashboard');
+  };
+
+  // ADMIN일 때만 integrations 로드
+  useEffect(() => {
+    if (currentWorkspace && isAdmin) {
+      loadIntegrations();
+    }
+  }, [currentWorkspace, isAdmin]);
+
+  // OAuth 연결 완료 후 자동으로 설정창 열기
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const openSettings = searchParams.get('openSettings');
+    const success = searchParams.get('success');
+
+    // success=true와 openSettings가 있고, integrations가 로드된 후에만 실행
+    if (openSettings && success === 'true' && !isLoading && integrations.length > 0) {
+      // URL 파라미터 제거
+      window.history.replaceState({}, '', window.location.pathname);
+
+      // 해당 provider의 설정창 열기 (연결 성공했으므로 isConnected 체크 불필요)
+      if (openSettings === 'github') {
+        openRepoSelector();
+      } else if (openSettings === 'slack') {
+        openChannelSelector();
+      } else if (openSettings === 'notion') {
+        openPageSelector();
+      }
+    }
+  }, [searchParams, isLoading, integrations, isAdmin]);
+
+  // 워크스페이스 로딩 중 또는 리다이렉트 중
+  if (isWorkspaceLoading || !currentWorkspace || isRedirecting) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // MEMBER는 접근 불가
+  if (!isAdmin) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <p className="text-gray-500">관리자만 접근할 수 있는 페이지입니다.</p>
+          <Button onClick={handleRedirectToDashboard}>
+            확인
+          </Button>
+        </div>
+      </AppLayout>
+    );
+  }
 
   const handleConnect = (provider: string) => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -129,11 +194,9 @@ export default function ConnectionsPage() {
 
   const openRepoSelector = () => {
     const githubIntegration = getGitHubIntegration();
-    if (githubIntegration?.config?.selectedRepos) {
-      setSelectedRepos(githubIntegration.config.selectedRepos);
-    } else {
-      setSelectedRepos([]);
-    }
+    const currentRepos = (githubIntegration?.config?.selectedRepos as string[]) || [];
+    setSelectedRepos(currentRepos);
+    setPreviousRepos(currentRepos);
     setShowRepoSelector(true);
   };
 
@@ -154,6 +217,11 @@ export default function ConnectionsPage() {
       });
       await loadIntegrations();
       setShowRepoSelector(false);
+      // 새로 추가된 레포지토리만 동기화
+      const newRepos = selectedRepos.filter((r) => !previousRepos.includes(r));
+      if (newRepos.length > 0) {
+        await itemApi.sync(currentWorkspace.id, { providers: ['github'], targetItems: newRepos });
+      }
     } catch (error) {
       console.error('Failed to save repos:', error);
     } finally {
@@ -163,11 +231,9 @@ export default function ConnectionsPage() {
 
   const openChannelSelector = () => {
     const slackIntegration = getSlackIntegration();
-    if (slackIntegration?.config?.selectedChannels) {
-      setSelectedChannels(slackIntegration.config.selectedChannels);
-    } else {
-      setSelectedChannels([]);
-    }
+    const currentChannels = (slackIntegration?.config?.selectedChannels as string[]) || [];
+    setSelectedChannels(currentChannels);
+    setPreviousChannels(currentChannels);
     setShowChannelSelector(true);
   };
 
@@ -188,6 +254,11 @@ export default function ConnectionsPage() {
       });
       await loadIntegrations();
       setShowChannelSelector(false);
+      // 새로 추가된 채널만 동기화
+      const newChannels = selectedChannels.filter((c) => !previousChannels.includes(c));
+      if (newChannels.length > 0) {
+        await itemApi.sync(currentWorkspace.id, { providers: ['slack'], targetItems: newChannels });
+      }
     } catch (error) {
       console.error('Failed to save channels:', error);
     } finally {
@@ -197,11 +268,9 @@ export default function ConnectionsPage() {
 
   const openPageSelector = () => {
     const notionIntegration = getNotionIntegration();
-    if (notionIntegration?.config?.selectedPages) {
-      setSelectedPages(notionIntegration.config.selectedPages);
-    } else {
-      setSelectedPages([]);
-    }
+    const currentPages = (notionIntegration?.config?.selectedPages as string[]) || [];
+    setSelectedPages(currentPages);
+    setPreviousPages(currentPages);
     setShowPageSelector(true);
   };
 
@@ -222,6 +291,11 @@ export default function ConnectionsPage() {
       });
       await loadIntegrations();
       setShowPageSelector(false);
+      // 새로 추가된 페이지만 동기화
+      const newPages = selectedPages.filter((p) => !previousPages.includes(p));
+      if (newPages.length > 0) {
+        await itemApi.sync(currentWorkspace.id, { providers: ['notion'], targetItems: newPages });
+      }
     } catch (error) {
       console.error('Failed to save pages:', error);
     } finally {
@@ -299,17 +373,17 @@ export default function ConnectionsPage() {
                               <div>
                                 {provider.id === 'github' && connected && (
                                   <p className="text-xs text-gray-500">
-                                    {getGitHubIntegration()?.config?.selectedRepos?.length || 0}개 레포지토리 선택됨
+                                    {(getGitHubIntegration()?.config?.selectedRepos as string[])?.length || 0}개 레포지토리 선택됨
                                   </p>
                                 )}
                                 {provider.id === 'slack' && connected && (
                                   <p className="text-xs text-gray-500">
-                                    {getSlackIntegration()?.config?.selectedChannels?.length || 0}개 채널 선택됨
+                                    {(getSlackIntegration()?.config?.selectedChannels as string[])?.length || 0}개 채널 선택됨
                                   </p>
                                 )}
                                 {provider.id === 'notion' && connected && (
                                   <p className="text-xs text-gray-500">
-                                    {getNotionIntegration()?.config?.selectedPages?.length || 0}개 페이지 선택됨
+                                    {(getNotionIntegration()?.config?.selectedPages as string[])?.length || 0}개 페이지 선택됨
                                   </p>
                                 )}
                               </div>
@@ -379,8 +453,14 @@ export default function ConnectionsPage() {
 
         {/* GitHub Repository Selector Modal */}
         {showRepoSelector && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowRepoSelector(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-4 border-b">
                 <h3 className="text-lg font-semibold">동기화할 레포지토리 선택</h3>
                 <p className="text-sm text-gray-500 mt-1">
@@ -390,7 +470,7 @@ export default function ConnectionsPage() {
               <div className="flex-1 overflow-y-auto p-4">
                 {(() => {
                   const githubIntegration = getGitHubIntegration();
-                  const availableRepos: GitHubRepo[] = githubIntegration?.config?.availableRepos || [];
+                  const availableRepos: GitHubRepo[] = (githubIntegration?.config?.availableRepos as GitHubRepo[]) || [];
 
                   if (availableRepos.length === 0) {
                     return (
@@ -452,8 +532,14 @@ export default function ConnectionsPage() {
 
         {/* Slack Channel Selector Modal */}
         {showChannelSelector && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowChannelSelector(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-4 border-b">
                 <h3 className="text-lg font-semibold">동기화할 채널 선택</h3>
                 <p className="text-sm text-gray-500 mt-1">
@@ -463,7 +549,7 @@ export default function ConnectionsPage() {
               <div className="flex-1 overflow-y-auto p-4">
                 {(() => {
                   const slackIntegration = getSlackIntegration();
-                  const availableChannels: SlackChannel[] = slackIntegration?.config?.availableChannels || [];
+                  const availableChannels: SlackChannel[] = (slackIntegration?.config?.availableChannels as SlackChannel[]) || [];
 
                   if (availableChannels.length === 0) {
                     return (
@@ -525,8 +611,14 @@ export default function ConnectionsPage() {
 
         {/* Notion Page Selector Modal */}
         {showPageSelector && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowPageSelector(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-4 border-b">
                 <h3 className="text-lg font-semibold">동기화할 페이지 선택</h3>
                 <p className="text-sm text-gray-500 mt-1">
@@ -536,7 +628,7 @@ export default function ConnectionsPage() {
               <div className="flex-1 overflow-y-auto p-4">
                 {(() => {
                   const notionIntegration = getNotionIntegration();
-                  const availablePages: NotionPage[] = notionIntegration?.config?.availablePages || [];
+                  const availablePages: NotionPage[] = (notionIntegration?.config?.availablePages as NotionPage[]) || [];
 
                   if (availablePages.length === 0) {
                     return (
@@ -597,5 +689,19 @@ export default function ConnectionsPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function ConnectionsPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      </AppLayout>
+    }>
+      <ConnectionsPageContent />
+    </Suspense>
   );
 }

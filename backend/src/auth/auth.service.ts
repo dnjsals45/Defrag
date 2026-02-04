@@ -3,17 +3,17 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
-import { UsersService } from '../users/users.service';
-import { EmailService } from '../email/email.service';
-import { SignUpDto } from './dto/signup.dto';
-import { LoginDto } from './dto/login.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { AuthProvider } from '../database/entities/user.entity';
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
+import { UsersService } from "../users/users.service";
+import { EmailService } from "../email/email.service";
+import { SignUpDto } from "./dto/signup.dto";
+import { LoginDto } from "./dto/login.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { AuthProvider } from "../database/entities/user.entity";
 
 @Injectable()
 export class AuthService {
@@ -26,7 +26,7 @@ export class AuthService {
   async signUp(signUpDto: SignUpDto) {
     const existingUser = await this.usersService.findByEmail(signUpDto.email);
     if (existingUser) {
-      throw new ConflictException('Email already exists');
+      throw new ConflictException("Email already exists");
     }
 
     const hashedPassword = await bcrypt.hash(signUpDto.password, 10);
@@ -34,13 +34,13 @@ export class AuthService {
     const user = await this.usersService.create({
       ...signUpDto,
       password: hashedPassword,
-      authProvider: 'local',
+      authProvider: "local",
     });
 
     const tokens = this.generateTokens(user.id, user.email);
 
     return {
-      message: '회원가입이 완료되었습니다',
+      message: "회원가입이 완료되었습니다",
       user: {
         id: user.id,
         email: user.email,
@@ -53,11 +53,11 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const user = await this.usersService.findByEmail(loginDto.email);
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     // Social login users cannot login with password
-    if (user.authProvider !== 'local' || !user.password) {
+    if (user.authProvider !== "local" || !user.password) {
       throw new UnauthorizedException(
         `이 계정은 ${user.authProvider} 소셜 로그인으로 가입되었습니다`,
       );
@@ -68,7 +68,7 @@ export class AuthService {
       user.password,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     const tokens = this.generateTokens(user.id, user.email);
@@ -162,11 +162,11 @@ export class AuthService {
       const payload = this.jwtService.verify(refreshToken);
       const user = await this.usersService.findById(payload.sub);
       if (!user) {
-        throw new UnauthorizedException('Invalid token');
+        throw new UnauthorizedException("Invalid token");
       }
       return this.generateTokens(user.id, user.email);
     } catch {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException("Invalid token");
     }
   }
 
@@ -178,16 +178,16 @@ export class AuthService {
     // Security: Always return success even if user doesn't exist
     // to prevent email enumeration attacks
     if (!user) {
-      return { message: '비밀번호 재설정 이메일을 발송했습니다' };
+      return { message: "비밀번호 재설정 이메일을 발송했습니다" };
     }
 
     // Social login users cannot reset password
-    if (user.authProvider !== 'local') {
-      return { message: '비밀번호 재설정 이메일을 발송했습니다' };
+    if (user.authProvider !== "local") {
+      return { message: "비밀번호 재설정 이메일을 발송했습니다" };
     }
 
     // Generate random token
-    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetToken = crypto.randomBytes(32).toString("hex");
 
     // Set expiry to 1 hour from now
     const expiry = new Date();
@@ -199,7 +199,7 @@ export class AuthService {
     // Send password reset email
     await this.emailService.sendPasswordResetEmail(user.email, resetToken);
 
-    return { message: '비밀번호 재설정 이메일을 발송했습니다' };
+    return { message: "비밀번호 재설정 이메일을 발송했습니다" };
   }
 
   async resetPassword(
@@ -210,12 +210,12 @@ export class AuthService {
     );
 
     if (!user) {
-      throw new BadRequestException('유효하지 않거나 만료된 토큰입니다');
+      throw new BadRequestException("유효하지 않거나 만료된 토큰입니다");
     }
 
     // Check if token has expired
     if (!user.passwordResetExpiry || user.passwordResetExpiry < new Date()) {
-      throw new BadRequestException('유효하지 않거나 만료된 토큰입니다');
+      throw new BadRequestException("유효하지 않거나 만료된 토큰입니다");
     }
 
     // Hash new password
@@ -224,7 +224,7 @@ export class AuthService {
     // Update password and clear reset token
     await this.usersService.updatePassword(user.id, hashedPassword);
 
-    return { message: '비밀번호가 변경되었습니다' };
+    return { message: "비밀번호가 변경되었습니다" };
   }
 
   async verifyResetToken(token: string): Promise<{ valid: boolean }> {
@@ -246,7 +246,7 @@ export class AuthService {
     const payload = { sub: userId, email };
     return {
       accessToken: this.jwtService.sign(payload),
-      refreshToken: this.jwtService.sign(payload, { expiresIn: '30d' }),
+      refreshToken: this.jwtService.sign(payload, { expiresIn: "30d" }),
     };
   }
 }

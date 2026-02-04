@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Search,
   FolderOpen,
@@ -14,7 +14,7 @@ import {
   ChevronDown,
   MessageSquare,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
@@ -26,13 +26,14 @@ const navItems = [
   { href: '/items', label: '전체 아이템', icon: Database },
   { href: '/search', label: '검색', icon: Search },
   { href: '/conversations', label: 'AI 대화', icon: MessageSquare },
-  { href: '/settings/connections', label: '연결 관리', icon: LinkIcon },
-  { href: '/settings/members', label: '멤버 관리', icon: Users },
+  { href: '/settings/connections', label: '연결 관리', icon: LinkIcon, adminOnly: true },
+  { href: '/settings/members', label: '멤버 관리', icon: Users, teamOnly: true },
   { href: '/settings', label: '설정', icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuthStore();
   const { workspaces, currentWorkspace, setCurrentWorkspace, createWorkspace } = useWorkspaceStore();
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
@@ -40,18 +41,66 @@ export function Sidebar() {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceType, setNewWorkspaceType] = useState<'personal' | 'team'>('personal');
   const [isCreating, setIsCreating] = useState(false);
+  const [nameError, setNameError] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowWorkspaceDropdown(false);
+      }
+    };
+
+    if (showWorkspaceDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showWorkspaceDropdown]);
 
   const handleCreateWorkspace = async () => {
-    if (!newWorkspaceName.trim()) return;
+    const trimmedName = newWorkspaceName.trim();
+    if (!trimmedName) {
+      setNameError('워크스페이스 이름은 필수입니다');
+      return;
+    }
+
+    // 프론트엔드 중복 검증
+    const isDuplicate = workspaces.some(
+      (ws) => ws.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) {
+      setNameError('이미 같은 이름의 워크스페이스가 존재합니다');
+      return;
+    }
+
+    setNameError('');
     setIsCreating(true);
     try {
-      await createWorkspace(newWorkspaceName, newWorkspaceType);
+      await createWorkspace(trimmedName, newWorkspaceType);
       setShowCreateModal(false);
       setNewWorkspaceName('');
-    } catch (error) {
-      console.error('Failed to create workspace:', error);
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      // 백엔드 에러 메시지 처리
+      const message = error?.response?.data?.message || '워크스페이스 생성에 실패했습니다';
+      setNameError(message);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleCloseCreateModal = () => {
+    setShowCreateModal(false);
+    setNewWorkspaceName('');
+    setNameError('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isCreating) {
+      handleCreateWorkspace();
     }
   };
 
@@ -65,7 +114,7 @@ export function Sidebar() {
 
       {/* Workspace Selector */}
       <div className="px-3 py-3 border-b border-gray-800">
-        <div className="relative">
+        <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
             className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
@@ -77,23 +126,36 @@ export function Sidebar() {
           </button>
 
           {showWorkspaceDropdown && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-lg z-10 py-1">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-lg z-10 py-1 max-h-64 overflow-y-auto">
               {workspaces.map((ws) => (
                 <button
                   key={ws.id}
                   onClick={() => {
                     setCurrentWorkspace(ws);
                     setShowWorkspaceDropdown(false);
+                    // 워크스페이스 변경 시 대시보드로 이동 (권한 문제 방지)
+                    router.push('/dashboard');
                   }}
                   className={cn(
-                    'w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors',
+                    'w-full px-3 py-2 text-left hover:bg-gray-700 transition-colors',
                     currentWorkspace?.id === ws.id && 'bg-gray-700'
                   )}
                 >
-                  <span className="truncate">{ws.name}</span>
-                  <span className="text-xs text-gray-400 ml-2">
-                    {ws.type === 'personal' ? '개인' : '팀'}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm truncate flex-1">{ws.name}</span>
+                    <span className={cn(
+                      'text-xs px-1.5 py-0.5 rounded ml-2',
+                      ws.type === 'personal'
+                        ? 'bg-gray-600 text-gray-300'
+                        : 'bg-blue-600 text-blue-100'
+                    )}>
+                      {ws.type === 'personal' ? '개인' : '팀'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    {ws.type === 'team' && `${ws.memberCount}명 · `}
+                    {ws.role === 'ADMIN' ? '관리자' : '멤버'}
+                  </div>
                 </button>
               ))}
               <button
@@ -113,27 +175,39 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          // /settings는 정확히 일치할 때만, 나머지는 하위 경로도 포함
-          const isActive = item.href === '/settings'
-            ? pathname === item.href
-            : (pathname === item.href || pathname.startsWith(item.href + '/'));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-800'
-              )}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="text-sm">{item.label}</span>
-            </Link>
-          );
-        })}
+        {navItems
+          .filter((item) => {
+            // adminOnly: ADMIN 역할만 볼 수 있음
+            if (item.adminOnly && currentWorkspace?.role !== 'ADMIN') {
+              return false;
+            }
+            // teamOnly: 팀 워크스페이스에서만 볼 수 있음
+            if (item.teamOnly && currentWorkspace?.type !== 'team') {
+              return false;
+            }
+            return true;
+          })
+          .map((item) => {
+            // /settings는 정확히 일치할 때만, 나머지는 하위 경로도 포함
+            const isActive = item.href === '/settings'
+              ? pathname === item.href
+              : (pathname === item.href || pathname.startsWith(item.href + '/'));
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+                  isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800'
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="text-sm">{item.label}</span>
+              </Link>
+            );
+          })}
       </nav>
 
       {/* User Section */}
@@ -159,15 +233,21 @@ export function Sidebar() {
       {/* Create Workspace Modal */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={handleCloseCreateModal}
         title="새 워크스페이스"
       >
         <div className="space-y-4">
           <Input
             label="워크스페이스 이름"
             value={newWorkspaceName}
-            onChange={(e) => setNewWorkspaceName(e.target.value)}
+            onChange={(e) => {
+              setNewWorkspaceName(e.target.value);
+              if (nameError) setNameError('');
+            }}
+            onKeyDown={handleKeyDown}
             placeholder="내 프로젝트"
+            error={nameError}
+            autoFocus
           />
           <Select
             label="유형"
@@ -181,7 +261,7 @@ export function Sidebar() {
           <div className="flex gap-2 pt-2">
             <Button
               variant="outline"
-              onClick={() => setShowCreateModal(false)}
+              onClick={handleCloseCreateModal}
               className="flex-1"
             >
               취소

@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UserConnection, Provider } from '../database/entities/user-connection.entity';
-import { CryptoService } from '../common/services/crypto.service';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  UserConnection,
+  Provider,
+} from "../database/entities/user-connection.entity";
+import { CryptoService } from "../common/services/crypto.service";
 
 @Injectable()
 export class ConnectionsService {

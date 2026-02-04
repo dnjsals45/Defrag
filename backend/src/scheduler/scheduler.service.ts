@@ -1,9 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
-import { WorkspaceIntegration } from '../database/entities/workspace-integration.entity';
-import { SyncService } from '../sync/sync.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, IsNull } from "typeorm";
+import { WorkspaceIntegration } from "../database/entities/workspace-integration.entity";
+import { SyncService } from "../sync/sync.service";
 
 @Injectable()
 export class SchedulerService {
@@ -20,19 +20,22 @@ export class SchedulerService {
    */
   @Cron(CronExpression.EVERY_HOUR)
   async handleHourlySync(): Promise<void> {
-    this.logger.log('Starting scheduled hourly sync...');
+    this.logger.log("Starting scheduled hourly sync...");
 
     try {
       // Get all unique workspace IDs with active integrations
       const integrations = await this.workspaceIntegrationRepository.find({
         where: { deletedAt: IsNull() },
-        select: ['workspaceId', 'connectedBy'],
+        select: ["workspaceId", "connectedBy"],
       });
 
       // Group by workspaceId to avoid duplicate syncs
       const workspaceMap = new Map<string, string>();
       for (const integration of integrations) {
-        if (!workspaceMap.has(integration.workspaceId) && integration.connectedBy) {
+        if (
+          !workspaceMap.has(integration.workspaceId) &&
+          integration.connectedBy
+        ) {
           workspaceMap.set(integration.workspaceId, integration.connectedBy);
         }
       }
@@ -43,9 +46,11 @@ export class SchedulerService {
       for (const [workspaceId, userId] of workspaceMap) {
         try {
           await this.syncService.triggerSync(workspaceId, userId, {
-            syncType: 'incremental',
+            syncType: "incremental",
           });
-          this.logger.log(`Triggered incremental sync for workspace: ${workspaceId}`);
+          this.logger.log(
+            `Triggered incremental sync for workspace: ${workspaceId}`,
+          );
         } catch (error: any) {
           this.logger.error(
             `Failed to trigger sync for workspace ${workspaceId}: ${error.message}`,
@@ -53,7 +58,7 @@ export class SchedulerService {
         }
       }
 
-      this.logger.log('Scheduled hourly sync completed');
+      this.logger.log("Scheduled hourly sync completed");
     } catch (error: any) {
       this.logger.error(`Scheduled sync failed: ${error.message}`);
     }
@@ -62,19 +67,22 @@ export class SchedulerService {
   /**
    * Daily full sync at 3 AM for all workspaces
    */
-  @Cron('0 3 * * *')
+  @Cron("0 3 * * *")
   async handleDailyFullSync(): Promise<void> {
-    this.logger.log('Starting scheduled daily full sync...');
+    this.logger.log("Starting scheduled daily full sync...");
 
     try {
       const integrations = await this.workspaceIntegrationRepository.find({
         where: { deletedAt: IsNull() },
-        select: ['workspaceId', 'connectedBy'],
+        select: ["workspaceId", "connectedBy"],
       });
 
       const workspaceMap = new Map<string, string>();
       for (const integration of integrations) {
-        if (!workspaceMap.has(integration.workspaceId) && integration.connectedBy) {
+        if (
+          !workspaceMap.has(integration.workspaceId) &&
+          integration.connectedBy
+        ) {
           workspaceMap.set(integration.workspaceId, integration.connectedBy);
         }
       }
@@ -84,7 +92,7 @@ export class SchedulerService {
       for (const [workspaceId, userId] of workspaceMap) {
         try {
           await this.syncService.triggerSync(workspaceId, userId, {
-            syncType: 'full',
+            syncType: "full",
           });
           this.logger.log(`Triggered full sync for workspace: ${workspaceId}`);
         } catch (error: any) {
@@ -94,7 +102,7 @@ export class SchedulerService {
         }
       }
 
-      this.logger.log('Scheduled daily full sync completed');
+      this.logger.log("Scheduled daily full sync completed");
     } catch (error: any) {
       this.logger.error(`Scheduled full sync failed: ${error.message}`);
     }
@@ -103,10 +111,14 @@ export class SchedulerService {
   /**
    * Manual trigger for testing or admin purposes
    */
-  async triggerManualSync(workspaceId: string, userId: string, full = false): Promise<void> {
+  async triggerManualSync(
+    workspaceId: string,
+    userId: string,
+    full = false,
+  ): Promise<void> {
     this.logger.log(`Manual sync triggered for workspace: ${workspaceId}`);
     await this.syncService.triggerSync(workspaceId, userId, {
-      syncType: full ? 'full' : 'incremental',
+      syncType: full ? "full" : "incremental",
     });
   }
 }
