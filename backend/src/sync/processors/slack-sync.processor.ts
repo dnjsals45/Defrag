@@ -80,10 +80,20 @@ export class SlackSyncProcessor extends WorkerHost {
 
       // Get channel details for channels to sync
       const allChannels = await this.slackService.getChannels(accessToken);
-      const channels = allChannels.filter((c) => channelIdsToSync.includes(c.id));
+      const selectedChannels = allChannels.filter((c) => channelIdsToSync.includes(c.id));
+
+      // Filter to only channels where the bot is a member
+      const channels = selectedChannels.filter((c) => c.is_member);
+      const notMemberChannels = selectedChannels.filter((c) => !c.is_member);
+
+      if (notMemberChannels.length > 0) {
+        const channelNames = notMemberChannels.map((c) => `#${c.name}`).join(', ');
+        this.logger.warn(`Bot is not a member of channels: ${channelNames}`);
+        result.errors.push(`봇이 참여하지 않은 채널 (스킵됨): ${channelNames}`);
+      }
 
       if (channels.length === 0) {
-        result.errors.push('Selected channels not found or bot is not a member');
+        result.errors.push('동기화할 수 있는 채널이 없습니다. 봇을 채널에 초대해주세요.');
         return result;
       }
 
