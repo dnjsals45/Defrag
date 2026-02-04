@@ -76,3 +76,21 @@ export interface WorkspaceInvitation {
   createdAt: string;
   expiresAt: string;
 }
+
+export type NotificationType = 'embedding_complete' | 'sync_complete' | 'system';
+
+export interface Notification {
+  id: string;
+  userId: string;
+  workspaceId: string | null;
+  type: NotificationType;
+  title: string;
+  message: string | null;
+  isRead: boolean;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  workspace?: {
+    id: string;
+    name: string;
+  } | null;
+}

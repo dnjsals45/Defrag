@@ -45,8 +45,11 @@ function ConversationsPageContent() {
   const [isSending, setIsSending] = useState(false);
   const [question, setQuestion] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const processedQuestionRef = useRef<string | null>(null);
 
   const conversationIdFromUrl = searchParams.get('id');
+  const questionFromUrl = searchParams.get('q');
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -54,14 +57,31 @@ function ConversationsPageContent() {
     }
   }, [currentWorkspace]);
 
+  // URL에서 질문이 있으면 새 대화 시작 (중복 실행 방지)
+  useEffect(() => {
+    if (questionFromUrl && currentWorkspace && !isCreating) {
+      // 이미 처리한 질문인지 확인
+      if (processedQuestionRef.current === questionFromUrl) return;
+      processedQuestionRef.current = questionFromUrl;
+      startConversationWithQuestion(questionFromUrl);
+    }
+  }, [questionFromUrl, currentWorkspace]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // URL에서 대화 ID가 있으면 해당 대화 로드
   useEffect(() => {
     if (conversationIdFromUrl && currentWorkspace && conversations.length > 0) {
       // 이미 선택된 대화와 같으면 스킵
       if (selectedConversation?.id === conversationIdFromUrl) return;
-      loadConversation(conversationIdFromUrl);
+      // 대화 목록에 존재하는지 확인
+      const exists = conversations.some((c) => c.id === conversationIdFromUrl);
+      if (exists) {
+        loadConversation(conversationIdFromUrl);
+      } else {
+        // 존재하지 않으면 URL 정리
+        router.replace('/conversations', { scroll: false });
+      }
     }
-  }, [conversationIdFromUrl, currentWorkspace, conversations]);
+  }, [conversationIdFromUrl, currentWorkspace, conversations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     scrollToBottom();
@@ -101,12 +121,70 @@ function ConversationsPageContent() {
       const { data } = await conversationApi.create(currentWorkspace.id);
       setConversations((prev) => [data, ...prev]);
       setSelectedConversation({ ...data, messages: [] });
+      setQuestion(''); // 입력창 초기화
       // URL에 새 대화 ID 반영
       router.push(`/conversations?id=${data.id}`, { scroll: false });
+      // 입력창에 포커스
+      setTimeout(() => inputRef.current?.focus(), 100);
     } catch (error) {
       console.error('Failed to create conversation:', error);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const startConversationWithQuestion = async (initialQuestion: string) => {
+    if (!currentWorkspace || isCreating) return;
+    setIsCreating(true);
+    try {
+      // 새 대화 생성
+      const { data: newConversation } = await conversationApi.create(currentWorkspace.id);
+      setConversations((prev) => [newConversation, ...prev]);
+
+      // 질문 메시지 추가 (optimistic update)
+      const tempUserMessage: ConversationMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: initialQuestion,
+        createdAt: new Date().toISOString(),
+      };
+      setSelectedConversation({ ...newConversation, messages: [tempUserMessage] });
+
+      // URL 정리 (q 파라미터 제거)
+      router.replace(`/conversations?id=${newConversation.id}`, { scroll: false });
+
+      // 메시지 전송
+      setIsSending(true);
+      const { data: response } = await conversationApi.sendMessage(
+        currentWorkspace.id,
+        newConversation.id,
+        initialQuestion,
+      );
+
+      // 응답으로 업데이트
+      setSelectedConversation((prev) => {
+        if (!prev) return prev;
+        const filteredMessages = (prev.messages || []).filter((m) => !m.id.startsWith('temp-'));
+        return {
+          ...prev,
+          title: response.conversation?.title || prev.title,
+          messages: [...filteredMessages, response.userMessage, response.assistantMessage],
+        };
+      });
+
+      // 대화 목록의 제목도 업데이트
+      if (response.conversation?.title) {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === newConversation.id ? { ...c, title: response.conversation.title } : c,
+          ),
+        );
+      }
+    } catch (error) {
+      console.error('Failed to start conversation with question:', error);
+    } finally {
+      setIsCreating(false);
+      setIsSending(false);
     }
   };
 
@@ -163,21 +241,19 @@ function ConversationsPageContent() {
         const messages = prev.messages?.filter((m) => m.id !== tempUserMessage.id) || [];
         return {
           ...prev,
+          title: data.conversation?.title || prev.title,
           messages: [...messages, data.userMessage, data.assistantMessage],
         };
       });
 
-      // Update conversation title in list if it was set
-      if (!selectedConversation.title) {
+      // Update conversation title in list if returned from server
+      if (data.conversation?.title) {
         setConversations((prev) =>
           prev.map((c) =>
             c.id === selectedConversation.id
-              ? { ...c, title: userQuestion.substring(0, 50), updatedAt: new Date().toISOString() }
+              ? { ...c, title: data.conversation.title, updatedAt: new Date().toISOString() }
               : c
           )
-        );
-        setSelectedConversation((prev) =>
-          prev ? { ...prev, title: userQuestion.substring(0, 50) } : prev
         );
       }
     } catch (error) {
@@ -385,6 +461,7 @@ function ConversationsPageContent() {
               <form onSubmit={sendMessage} className="p-4 border-t border-gray-200">
                 <div className="flex gap-3">
                   <input
+                    ref={inputRef}
                     type="text"
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
