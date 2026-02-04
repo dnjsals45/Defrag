@@ -149,3 +149,23 @@ CREATE INDEX IF NOT EXISTS idx_item_relation_target ON item_relation(target_id) 
 CREATE INDEX IF NOT EXISTS idx_conversation_workspace ON conversation(workspace_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_conversation_user ON conversation(user_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_conversation_message_conversation ON conversation_message(conversation_id);
+
+-- 11. workspace_invitation (초대 시스템)
+CREATE TABLE IF NOT EXISTS workspace_invitation (
+    id BIGSERIAL PRIMARY KEY,
+    workspace_id BIGINT NOT NULL REFERENCES workspace(id),
+    inviter_id BIGINT NOT NULL REFERENCES users(id),
+    invitee_id BIGINT REFERENCES users(id),
+    invitee_email VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'MEMBER',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    expires_at TIMESTAMP NOT NULL,
+    responded_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_invitation_workspace ON workspace_invitation(workspace_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_workspace_invitation_invitee ON workspace_invitation(invitee_id) WHERE deleted_at IS NULL AND status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_workspace_invitation_email ON workspace_invitation(invitee_email) WHERE deleted_at IS NULL AND status = 'pending';

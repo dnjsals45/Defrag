@@ -54,7 +54,7 @@ const providers = [
 ];
 
 function ConnectionsPageContent() {
-  const { currentWorkspace } = useWorkspaceStore();
+  const { currentWorkspace, isLoading: isWorkspaceLoading } = useWorkspaceStore();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -68,6 +68,7 @@ function ConnectionsPageContent() {
   const [showPageSelector, setShowPageSelector] = useState(false);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [isSavingPages, setIsSavingPages] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const isAdmin = currentWorkspace?.role === 'ADMIN';
 
@@ -88,12 +89,10 @@ function ConnectionsPageContent() {
     }
   };
 
-  // MEMBER 역할은 대시보드로 리다이렉트
-  useEffect(() => {
-    if (currentWorkspace && !isAdmin) {
-      router.replace('/dashboard');
-    }
-  }, [currentWorkspace, isAdmin, router]);
+  const handleRedirectToDashboard = () => {
+    setIsRedirecting(true);
+    router.replace('/dashboard');
+  };
 
   // ADMIN일 때만 integrations 로드
   useEffect(() => {
@@ -125,12 +124,28 @@ function ConnectionsPageContent() {
     }
   }, [searchParams, isLoading, integrations, isAdmin]);
 
-  // 권한 체크 중이거나 MEMBER면 로딩 표시
-  if (!currentWorkspace || !isAdmin) {
+  // 워크스페이스 로딩 중 또는 리다이렉트 중
+  if (isWorkspaceLoading || !currentWorkspace || isRedirecting) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-      </div>
+      <AppLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // MEMBER는 접근 불가
+  if (!isAdmin) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <p className="text-gray-500">관리자만 접근할 수 있는 페이지입니다.</p>
+          <Button onClick={handleRedirectToDashboard}>
+            확인
+          </Button>
+        </div>
+      </AppLayout>
     );
   }
 

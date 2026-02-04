@@ -131,6 +131,14 @@ export const searchApi = {
     api.post(`/workspaces/${workspaceId}/ask`, data),
 };
 
+// Invitation API
+export const invitationApi = {
+  list: () => api.get('/invitations'),
+  count: () => api.get('/invitations/count'),
+  accept: (id: string) => api.post(`/invitations/${id}/accept`),
+  reject: (id: string) => api.post(`/invitations/${id}/reject`),
+};
+
 // Conversation API
 export const conversationApi = {
   list: (workspaceId: string, params?: { page?: number; limit?: number }) =>

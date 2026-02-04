@@ -1,12 +1,18 @@
 'use client';
 
-import { Search } from 'lucide-react';
+import { Search, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useInvitationStore } from '@/stores/invitation';
 
 export function Header() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const { count, loadCount } = useInvitationStore();
+
+  useEffect(() => {
+    loadCount();
+  }, [loadCount]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +35,19 @@ export function Header() {
           />
         </div>
       </form>
+
+      <button
+        onClick={() => router.push('/invitations')}
+        className="relative ml-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+        aria-label="받은 초대"
+      >
+        <Bell className="w-5 h-5" />
+        {count > 0 && (
+          <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-xs font-medium text-white bg-red-500 rounded-full">
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+      </button>
     </header>
   );
 }

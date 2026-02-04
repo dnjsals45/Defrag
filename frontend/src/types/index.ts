@@ -65,3 +65,14 @@ export interface AskResponse {
     relevantSnippet: string;
   }[];
 }
+
+export interface WorkspaceInvitation {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  inviterNickname: string;
+  role: 'ADMIN' | 'MEMBER';
+  status: 'pending' | 'accepted' | 'rejected' | 'expired';
+  createdAt: string;
+  expiresAt: string;
+}

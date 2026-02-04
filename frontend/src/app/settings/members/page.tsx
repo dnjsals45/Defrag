@@ -51,7 +51,8 @@ export default function MembersPage() {
       });
       setShowInviteModal(false);
       setInviteEmail('');
-      await loadMembers();
+      setInviteRole('MEMBER');
+      alert('초대가 발송되었습니다');
     } catch (error: any) {
       setInviteError(error.response?.data?.message || '초대에 실패했습니다');
     } finally {
