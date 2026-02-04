@@ -1,19 +1,32 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FolderOpen, Search, Link as LinkIcon, Clock, Trash2, Plus, Users, User } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { MessageSquare, Plus, Users, User, ArrowRight, FolderOpen, LinkIcon, Globe, Send, Sparkles } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input, Modal } from '@/components/ui';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { itemApi, integrationApi } from '@/lib/api';
-import { getSourceIcon, getSourceLabel, formatRelativeTime } from '@/lib/utils';
-import type { ContextItem } from '@/types';
+import { conversationApi, integrationApi, itemApi } from '@/lib/api';
+import { formatRelativeTime } from '@/lib/utils';
+
+interface Conversation {
+  id: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { currentWorkspace, workspaces, isLoading: isLoadingWorkspaces, createWorkspace } = useWorkspaceStore();
-  const [recentItems, setRecentItems] = useState<ContextItem[]>([]);
+  const [recentConversations, setRecentConversations] = useState<Conversation[]>([]);
   const [connectedCount, setConnectedCount] = useState(0);
+  const [conversationCount, setConversationCount] = useState(0);
+  const [itemCount, setItemCount] = useState(0);
+  const [webArticleCount, setWebArticleCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [question, setQuestion] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceType, setNewWorkspaceType] = useState<'personal' | 'team'>('personal');
@@ -22,10 +35,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (currentWorkspace) {
-      loadRecentItems();
+      loadRecentConversations();
       loadIntegrations();
+      loadItemCount();
     }
-  }, [currentWorkspace]);
+  }, [currentWorkspace]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadIntegrations = async () => {
     if (!currentWorkspace) return;
@@ -38,29 +52,47 @@ export default function DashboardPage() {
     }
   };
 
-  const loadRecentItems = async () => {
+  const loadItemCount = async () => {
     if (!currentWorkspace) return;
     try {
-      const { data } = await itemApi.list(currentWorkspace.id, { limit: 10 });
-      setRecentItems(data.items);
+      const { data } = await itemApi.list(currentWorkspace.id, { limit: 1 });
+      setItemCount(data.total || data.items?.length || 0);
+
+      // Load web article count
+      const { data: webData } = await itemApi.list(currentWorkspace.id, { source: 'web_article', limit: 1 });
+      setWebArticleCount(webData.total || webData.items?.length || 0);
     } catch (error) {
-      console.error('Failed to load items:', error);
+      console.error('Failed to load item count:', error);
+    }
+  };
+
+  const loadRecentConversations = async () => {
+    if (!currentWorkspace) return;
+    try {
+      const { data } = await conversationApi.list(currentWorkspace.id, { limit: 5 });
+      setRecentConversations(data.conversations || []);
+      setConversationCount(data.total || data.conversations?.length || 0);
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDeleteItem = async (e: React.MouseEvent, itemId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!currentWorkspace) return;
-    if (!confirm('이 아티클을 삭제하시겠습니까?')) return;
+  const handleNewConversation = () => {
+    router.push('/conversations');
+  };
 
-    try {
-      await itemApi.delete(currentWorkspace.id, itemId);
-      setRecentItems((prev) => prev.filter((item) => item.id !== itemId));
-    } catch (error) {
-      console.error('Failed to delete item:', error);
+  const handleAskQuestion = async () => {
+    if (!question.trim() || !currentWorkspace) return;
+    // Navigate to conversations with the question as a query param
+    router.push(`/conversations?q=${encodeURIComponent(question.trim())}`);
+  };
+
+  const handleQuestionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAskQuestion();
     }
   };
 
@@ -85,16 +117,20 @@ export default function DashboardPage() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleModalKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isCreating) {
       handleCreateWorkspace();
     }
   };
 
+  const formatItemCount = (count: number) => {
+    return count > 999 ? '999+' : count;
+  };
+
   const stats = [
     {
       label: '전체 아이템',
-      value: recentItems.length,
+      value: formatItemCount(itemCount),
       icon: FolderOpen,
       color: 'text-blue-600 bg-blue-100',
     },
@@ -105,9 +141,9 @@ export default function DashboardPage() {
       color: 'text-green-600 bg-green-100',
     },
     {
-      label: '이번 주 검색',
-      value: 0,
-      icon: Search,
+      label: '웹 아티클',
+      value: formatItemCount(webArticleCount),
+      icon: Globe,
       color: 'text-purple-600 bg-purple-100',
     },
   ];
@@ -176,7 +212,7 @@ export default function DashboardPage() {
               <Input
                 value={newWorkspaceName}
                 onChange={(e) => setNewWorkspaceName(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onKeyDown={handleModalKeyDown}
                 placeholder="예: 내 프로젝트"
                 autoFocus
               />
@@ -245,18 +281,6 @@ export default function DashboardPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {currentWorkspace.name}
-            </h1>
-            <p className="text-gray-500 mt-1">
-              {currentWorkspace.type === 'personal' ? '개인' : '팀'} 워크스페이스
-            </p>
-          </div>
-        </div>
-
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {stats.map((stat) => (
@@ -274,64 +298,99 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Recent Items */}
+        {/* AI Conversations Card */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              최근 아이템
+          {/* Header with Ask AI */}
+          <div className="p-6 border-b border-gray-100">
+            <div className="text-center mb-4">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Sparkles className="w-5 h-5 text-blue-600" />
+                <h2 className="text-lg font-bold text-gray-900">
+                  {currentWorkspace.name}
+                </h2>
+              </div>
+              <p className="text-sm text-gray-500">
+                무엇이든 물어보세요. AI가 워크스페이스의 모든 지식을 검색해 답변합니다.
+              </p>
+            </div>
+            <div className="flex gap-2 items-end">
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={handleQuestionKeyDown}
+                placeholder="예: 지난 주 회의에서 논의된 API 변경사항은?"
+                className="flex-1 min-h-[42px] max-h-[120px] px-3 py-2 border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                rows={1}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+                }}
+              />
+              <Button
+                onClick={handleAskQuestion}
+                disabled={!question.trim()}
+                className="h-[42px]"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Recent Conversations */}
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MessageSquare className="w-4 h-4" />
+              최근 대화
             </CardTitle>
+            <Button variant="ghost" size="sm" onClick={handleNewConversation}>
+              <Plus className="w-4 h-4 mr-1" />
+              새 대화
+            </Button>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
               </div>
-            ) : recentItems.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <FolderOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>아직 저장된 아이템이 없습니다</p>
-                <p className="text-sm mt-1">
-                  외부 서비스를 연결하거나 웹 아티클을 추가해보세요
-                </p>
+            ) : recentConversations.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <p className="text-sm">아직 대화가 없습니다</p>
+                <p className="text-xs mt-1">위에서 첫 질문을 시작해보세요</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {recentItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
+              <div className="space-y-1">
+                {recentConversations.map((conv) => (
+                  <button
+                    key={conv.id}
+                    onClick={() => router.push(`/conversations?id=${conv.id}`)}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left group"
                   >
-                    <a
-                      href={item.sourceUrl || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-3 flex-1 min-w-0"
-                    >
-                      <span className="text-xl">{getSourceIcon(item.sourceType)}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">
-                          {item.title || '제목 없음'}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {getSourceLabel(item.sourceType)} · {formatRelativeTime(item.createdAt)}
-                        </p>
-                      </div>
-                    </a>
-                    <button
-                      onClick={(e) => handleDeleteItem(e, item.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                      title="삭제"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                    <MessageSquare className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {conv.title || '새 대화'}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {formatRelativeTime(conv.updatedAt)}
+                      </p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors flex-shrink-0" />
+                  </button>
                 ))}
+                {conversationCount > 5 && (
+                  <Button
+                    variant="ghost"
+                    className="w-full text-sm text-gray-500 mt-2"
+                    onClick={() => router.push('/conversations')}
+                  >
+                    모든 대화 보기 ({conversationCount}개)
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
-
       </div>
     </AppLayout>
   );
