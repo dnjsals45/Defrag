@@ -3,24 +3,31 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Search,
   FolderOpen,
   Database,
-  Settings,
-  Users,
-  User,
-  Link as LinkIcon,
-  LogOut,
-  Plus,
-  ChevronDown,
+  Search,
   MessageSquare,
+  Link as LinkIcon,
+  Users,
+  Settings,
+  LogOut,
+  ChevronDown,
+  Plus,
+  User,
+  X,
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useUIStore } from '@/stores/ui';
+import { createWorkspaceSchema, type CreateWorkspaceForm } from '@/lib/schemas';
+import { toast } from 'sonner';
 import { Modal } from '@/components/ui/modal';
 import { Button, Input } from '@/components/ui';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const navItems = [
   { href: '/dashboard', label: '대시보드', icon: FolderOpen },
@@ -37,15 +44,35 @@ export function Sidebar() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { workspaces, currentWorkspace, setCurrentWorkspace, createWorkspace } = useWorkspaceStore();
+  const { isMobileSidebarOpen, closeMobileSidebar } = useUIStore();
+
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('');
-  const [newWorkspaceType, setNewWorkspaceType] = useState<'personal' | 'team'>('personal');
-  const [isCreating, setIsCreating] = useState(false);
-  const [nameError, setNameError] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 외부 클릭 시 드롭다운 닫기
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateWorkspaceForm>({
+    resolver: zodResolver(createWorkspaceSchema),
+    defaultValues: {
+      name: '',
+      type: 'personal',
+    },
+  });
+
+  const workspaceType = watch('type');
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    closeMobileSidebar();
+  }, [pathname, closeMobileSidebar]);
+
+  // Handle click outside for workspace dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -62,115 +89,110 @@ export function Sidebar() {
     };
   }, [showWorkspaceDropdown]);
 
-  const handleCreateWorkspace = async () => {
-    const trimmedName = newWorkspaceName.trim();
-    if (!trimmedName) {
-      setNameError('워크스페이스 이름은 필수입니다');
-      return;
-    }
-
-    // 프론트엔드 중복 검증
+  const onSubmit = async (data: CreateWorkspaceForm) => {
     const isDuplicate = workspaces.some(
-      (ws) => ws.name.toLowerCase() === trimmedName.toLowerCase()
+      (ws) => ws.name.toLowerCase() === data.name.trim().toLowerCase()
     );
     if (isDuplicate) {
-      setNameError('이미 같은 이름의 워크스페이스가 존재합니다');
+      toast.error('이미 같은 이름의 워크스페이스가 존재합니다');
       return;
     }
 
-    setNameError('');
-    setIsCreating(true);
     try {
-      await createWorkspace(trimmedName, newWorkspaceType);
+      await createWorkspace(data.name.trim(), data.type);
+      toast.success('새 워크스페이스가 생성되었습니다');
       setShowCreateModal(false);
-      setNewWorkspaceName('');
+      reset();
     } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-      // 백엔드 에러 메시지 처리
       const message = error?.response?.data?.message || '워크스페이스 생성에 실패했습니다';
-      setNameError(message);
-    } finally {
-      setIsCreating(false);
+      toast.error(message);
     }
   };
 
   const handleCloseCreateModal = () => {
     setShowCreateModal(false);
-    setNewWorkspaceName('');
-    setNameError('');
+    reset();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !isCreating) {
-      handleCreateWorkspace();
-    }
-  };
-
-  return (
-    <aside className="w-64 bg-gray-900 text-white flex flex-col h-screen">
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full bg-slate-900 text-white">
       {/* Logo */}
-      <div className="px-4 py-5 border-b border-gray-800">
-        <h1 className="text-xl font-bold">Defrag</h1>
-        <p className="text-xs text-gray-400 mt-1">컨텍스트 통합 플랫폼</p>
+      <div className="px-6 py-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">Defrag</h1>
+          <p className="text-xs text-slate-400 mt-1">컨텍스트 통합 플랫폼</p>
+        </div>
+        {/* Mobile Close Button */}
+        <button
+          onClick={closeMobileSidebar}
+          className="md:hidden p-1 text-slate-400 hover:text-white"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Workspace Selector */}
-      <div className="px-3 py-3 border-b border-gray-800">
+      <div className="px-4 mb-2">
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
-            className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl transition-all duration-200 group"
           >
-            <span className="truncate text-sm">
+            <span className="truncate text-sm font-medium text-slate-200 group-hover:text-white">
               {currentWorkspace?.name || '워크스페이스 선택'}
             </span>
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${showWorkspaceDropdown ? 'rotate-180' : ''}`} />
           </button>
 
-          {showWorkspaceDropdown && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-lg z-10 py-1 max-h-64 overflow-y-auto">
-              {workspaces.map((ws) => (
-                <button
-                  key={ws.id}
-                  onClick={() => {
-                    setCurrentWorkspace(ws);
-                    setShowWorkspaceDropdown(false);
-                    // 워크스페이스 변경 시 대시보드로 이동 (권한 문제 방지)
-                    router.push('/dashboard');
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-left hover:bg-gray-700 transition-colors',
-                    currentWorkspace?.id === ws.id && 'bg-gray-700'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm truncate flex-1">{ws.name}</span>
-                    <span className={cn(
-                      'text-xs px-1.5 py-0.5 rounded ml-2',
-                      ws.type === 'personal'
-                        ? 'bg-gray-600 text-gray-300'
-                        : 'bg-blue-600 text-blue-100'
-                    )}>
-                      {ws.type === 'personal' ? '개인' : '팀'}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    {ws.type === 'team' && `${ws.memberCount}명 · `}
-                    {ws.role === 'ADMIN' ? '관리자' : '멤버'}
-                  </div>
-                </button>
-              ))}
-              <button
-                onClick={() => {
-                  setShowWorkspaceDropdown(false);
-                  setShowCreateModal(true);
-                }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors flex items-center gap-2 text-blue-400 border-t border-gray-700 mt-1 pt-2"
+          <AnimatePresence>
+            {showWorkspaceDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full left-0 right-0 mt-2 bg-slate-800 rounded-xl shadow-xl border border-slate-700 z-50 py-1.5 max-h-64 overflow-y-auto custom-scrollbar"
               >
-                <Plus className="w-4 h-4" />
-                새 워크스페이스
-              </button>
-            </div>
-          )}
+                {workspaces.map((ws) => (
+                  <button
+                    key={ws.id}
+                    onClick={() => {
+                      setCurrentWorkspace(ws);
+                      setShowWorkspaceDropdown(false);
+                      router.push('/dashboard');
+                    }}
+                    className={cn(
+                      'w-full px-3 py-2 text-left hover:bg-slate-700/50 transition-colors',
+                      currentWorkspace?.id === ws.id && 'bg-slate-700/50 text-blue-400'
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm truncate flex-1 font-medium">{ws.name}</span>
+                      <span className={cn(
+                        'text-[10px] px-1.5 py-0.5 rounded ml-2 font-medium',
+                        ws.type === 'personal'
+                          ? 'bg-slate-700 text-slate-300'
+                          : 'bg-blue-900/40 text-blue-300'
+                      )}>
+                        {ws.type === 'personal' ? '개인' : '팀'}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+                <div className="h-px bg-slate-700/50 my-1 mx-2" />
+                <button
+                  onClick={() => {
+                    setShowWorkspaceDropdown(false);
+                    setShowCreateModal(true);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-slate-700/50 transition-colors flex items-center gap-2 text-blue-400"
+                >
+                  <Plus className="w-4 h-4" />
+                  새 워크스페이스
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -178,18 +200,11 @@ export function Sidebar() {
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems
           .filter((item) => {
-            // adminOnly: ADMIN 역할만 볼 수 있음
-            if (item.adminOnly && currentWorkspace?.role !== 'ADMIN') {
-              return false;
-            }
-            // teamOnly: 팀 워크스페이스에서만 볼 수 있음
-            if (item.teamOnly && currentWorkspace?.type !== 'team') {
-              return false;
-            }
+            if (item.adminOnly && currentWorkspace?.role !== 'ADMIN') return false;
+            if (item.teamOnly && currentWorkspace?.type !== 'team') return false;
             return true;
           })
           .map((item) => {
-            // /settings는 정확히 일치할 때만, 나머지는 하위 경로도 포함
             const isActive = item.href === '/settings'
               ? pathname === item.href
               : (pathname === item.href || pathname.startsWith(item.href + '/'));
@@ -198,66 +213,65 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden',
                   isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:bg-gray-800'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
                 )}
               >
-                <item.icon className="w-5 h-5" />
-                <span className="text-sm">{item.label}</span>
+                <item.icon className={cn("w-5 h-5 transition-colors", isActive ? "text-white" : "text-slate-400 group-hover:text-slate-100")} />
+                <span className="text-sm font-medium">{item.label}</span>
+                {isActive && (
+                  <motion.div
+                    layoutId="activeNav"
+                    className="absolute inset-0 bg-blue-600 z-[-1]"
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
+                )}
               </Link>
             );
           })}
       </nav>
 
       {/* User Section */}
-      <div className="px-3 py-4 border-t border-gray-800">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center">
+      <div className="px-4 py-4 border-t border-slate-800">
+        <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-800 transition-colors cursor-default">
+          <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
             {user?.nickname?.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{user?.nickname}</p>
-            <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+            <p className="text-sm font-semibold text-slate-200 truncate">{user?.nickname}</p>
+            <p className="text-xs text-slate-500 truncate">{user?.email}</p>
           </div>
           <button
             onClick={logout}
-            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
             title="로그아웃"
           >
-            <LogOut className="w-4 h-4 text-gray-400" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Create Workspace Modal */}
       <Modal
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
         title="새 워크스페이스"
       >
-        <div className="space-y-4">
-          {nameError && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-              {nameError}
-            </div>
-          )}
-
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               워크스페이스 이름
             </label>
             <Input
-              value={newWorkspaceName}
-              onChange={(e) => {
-                setNewWorkspaceName(e.target.value);
-                if (nameError) setNameError('');
-              }}
-              onKeyDown={handleKeyDown}
+              {...register('name')}
               placeholder="예: 내 프로젝트"
               autoFocus
             />
+            {errors.name && (
+              <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>
+            )}
           </div>
 
           <div>
@@ -265,53 +279,73 @@ export function Sidebar() {
               워크스페이스 유형
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setNewWorkspaceType('personal')}
-                className={`p-4 border rounded-lg text-left transition-all ${
-                  newWorkspaceType === 'personal'
-                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <User className={`w-5 h-5 mb-2 ${newWorkspaceType === 'personal' ? 'text-blue-600' : 'text-gray-400'}`} />
-                <p className="font-medium text-gray-900">개인</p>
-                <p className="text-xs text-gray-500 mt-1">나만 사용</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setNewWorkspaceType('team')}
-                className={`p-4 border rounded-lg text-left transition-all ${
-                  newWorkspaceType === 'team'
-                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <Users className={`w-5 h-5 mb-2 ${newWorkspaceType === 'team' ? 'text-blue-600' : 'text-gray-400'}`} />
-                <p className="font-medium text-gray-900">팀</p>
-                <p className="text-xs text-gray-500 mt-1">팀원과 함께</p>
-              </button>
+              {(['personal', 'team'] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setValue('type', type)}
+                  className={cn(
+                    "p-4 border rounded-xl text-left transition-all duration-200",
+                    workspaceType === type
+                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 shadow-sm"
+                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                  )}
+                >
+                  {type === 'personal' ? (
+                    <User className={cn("w-5 h-5 mb-2", workspaceType === type ? "text-blue-600" : "text-gray-400")} />
+                  ) : (
+                    <Users className={cn("w-5 h-5 mb-2", workspaceType === type ? "text-blue-600" : "text-gray-400")} />
+                  )}
+                  <p className="font-medium text-gray-900">{type === 'personal' ? '개인' : '팀'}</p>
+                  <p className="text-xs text-gray-500 mt-1">{type === 'personal' ? '나만 사용' : '팀원과 함께'}</p>
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={handleCloseCreateModal}
-              className="flex-1"
-            >
+            <Button variant="outline" type="button" onClick={handleCloseCreateModal} className="flex-1">
               취소
             </Button>
-            <Button
-              onClick={handleCreateWorkspace}
-              isLoading={isCreating}
-              className="flex-1"
-            >
+            <Button type="submit" isLoading={isSubmitting} className="flex-1">
               만들기
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 flex-col h-screen fixed left-0 top-0 z-30 border-r border-slate-800 bg-slate-900">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile Sidebar (Drawer) */}
+      <AnimatePresence>
+        {isMobileSidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={closeMobileSidebar}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 shadow-2xl md:hidden"
+            >
+              <SidebarContent />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

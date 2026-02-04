@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, Plus, Users, User, ArrowRight, FolderOpen, LinkIcon, Globe, Send, Sparkles } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
-import { Card, CardHeader, CardTitle, CardContent, Button, Input, Modal } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Button, Input, Modal, Skeleton } from '@/components/ui';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { conversationApi, integrationApi, itemApi } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/utils';
@@ -226,11 +226,10 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setNewWorkspaceType('personal')}
-                  className={`p-4 border rounded-lg text-left transition-all ${
-                    newWorkspaceType === 'personal'
-                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`p-4 border rounded-lg text-left transition-all ${newWorkspaceType === 'personal'
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <User className={`w-5 h-5 mb-2 ${newWorkspaceType === 'personal' ? 'text-blue-600' : 'text-gray-400'}`} />
                   <p className="font-medium text-gray-900">개인</p>
@@ -239,11 +238,10 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setNewWorkspaceType('team')}
-                  className={`p-4 border rounded-lg text-left transition-all ${
-                    newWorkspaceType === 'team'
-                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`p-4 border rounded-lg text-left transition-all ${newWorkspaceType === 'team'
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <Users className={`w-5 h-5 mb-2 ${newWorkspaceType === 'team' ? 'text-blue-600' : 'text-gray-400'}`} />
                   <p className="font-medium text-gray-900">팀</p>
@@ -283,19 +281,33 @@ export default function DashboardPage() {
       <div className="space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {stats.map((stat) => (
-            <Card key={stat.label}>
-              <CardContent className="flex items-center gap-4 py-4">
-                <div className={`p-3 rounded-lg ${stat.color}`}>
-                  <stat.icon className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stat.value}</p>
-                  <p className="text-sm text-gray-500">{stat.label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="flex items-center gap-4 py-4">
+                  <Skeleton className="h-12 w-12 rounded-lg" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-24" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            stats.map((stat) => (
+              <Card key={stat.label}>
+                <CardContent className="flex items-center gap-4 py-4">
+                  <div className={`p-3 rounded-lg ${stat.color}`}>
+                    <stat.icon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                    <p className="text-sm text-gray-500">{stat.label}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* AI Conversations Card */}
@@ -350,8 +362,16 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="flex justify-center py-6">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2.5">
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/4" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : recentConversations.length === 0 ? (
               <div className="text-center py-6 text-gray-500">
