@@ -10,6 +10,7 @@ export interface SyncOptions {
   providers?: Provider[];
   syncType?: 'full' | 'incremental';
   since?: string;
+  targetItems?: string[];  // 특정 항목만 동기화
 }
 
 export interface SyncStatus {
@@ -45,7 +46,7 @@ export class SyncService {
     userId: string,
     options: SyncOptions = {},
   ): Promise<{ jobIds: Record<Provider, string> }> {
-    const { providers, syncType = 'incremental', since } = options;
+    const { providers, syncType = 'incremental', since, targetItems } = options;
 
     // Get connected integrations for this workspace
     const integrations = await this.integrationsRepository.find({
@@ -62,7 +63,7 @@ export class SyncService {
     const jobIds: Record<string, string> = {};
 
     for (const provider of providersToSync) {
-      const jobId = await this.queueSyncJob(provider, workspaceId, userId, syncType, since);
+      const jobId = await this.queueSyncJob(provider, workspaceId, userId, syncType, since, targetItems);
       if (jobId) {
         jobIds[provider] = jobId;
       }
@@ -81,8 +82,9 @@ export class SyncService {
     userId: string,
     syncType: 'full' | 'incremental',
     since?: string,
+    targetItems?: string[],
   ): Promise<string | null> {
-    const jobData = { workspaceId, userId, syncType, since };
+    const jobData = { workspaceId, userId, syncType, since, targetItems };
     const jobOptions = {
       jobId: `${provider}-${workspaceId}-${Date.now()}`,
       attempts: 3,

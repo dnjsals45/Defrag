@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Workspace, WorkspaceType } from '../database/entities/workspace.entity';
@@ -16,9 +16,19 @@ export class WorkspacesService {
   ) {}
 
   async create(userId: string, dto: CreateWorkspaceDto): Promise<Workspace> {
+    // 같은 사용자의 워크스페이스 중 동일 이름 체크
+    const existingWorkspaces = await this.findAllByUser(userId);
+    const isDuplicate = existingWorkspaces.some(
+      (ws) => ws.name.toLowerCase() === dto.name.trim().toLowerCase()
+    );
+
+    if (isDuplicate) {
+      throw new ConflictException('이미 같은 이름의 워크스페이스가 존재합니다');
+    }
+
     const workspace = this.workspacesRepository.create({
       ownerId: userId,
-      name: dto.name,
+      name: dto.name.trim(),
       type: dto.type || WorkspaceType.PERSONAL,
     });
 

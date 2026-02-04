@@ -113,11 +113,11 @@ export const itemApi = {
     api.get(`/workspaces/${workspaceId}/items`, { params }),
   get: (workspaceId: string, itemId: string) =>
     api.get(`/workspaces/${workspaceId}/items/${itemId}`),
-  create: (workspaceId: string, data: { url: string }) =>
+  create: (workspaceId: string, data: { urls: string[] }) =>
     api.post(`/workspaces/${workspaceId}/items`, data),
   delete: (workspaceId: string, itemId: string) =>
     api.delete(`/workspaces/${workspaceId}/items/${itemId}`),
-  sync: (workspaceId: string, options?: { providers?: string[]; syncType?: 'full' | 'incremental' }) =>
+  sync: (workspaceId: string, options?: { providers?: string[]; syncType?: 'full' | 'incremental'; targetItems?: string[] }) =>
     api.post(`/workspaces/${workspaceId}/items/sync`, options),
   syncStatus: (workspaceId: string) =>
     api.get(`/workspaces/${workspaceId}/items/sync/status`),

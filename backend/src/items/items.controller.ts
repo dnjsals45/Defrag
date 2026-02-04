@@ -75,6 +75,7 @@ export class ItemsController {
       providers: dto?.providers,
       syncType: dto?.syncType,
       since: dto?.since,
+      targetItems: dto?.targetItems,
     });
     return { success: true, message: 'Sync triggered', ...result };
   }

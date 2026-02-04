@@ -15,6 +15,7 @@ export interface SlackSyncJobData {
   syncType: 'full' | 'incremental';
   oldest?: string;
   channelIds?: string[];
+  targetItems?: string[];  // 특정 채널만 동기화
 }
 
 export interface SlackSyncResult {
@@ -40,7 +41,7 @@ export class SlackSyncProcessor extends WorkerHost {
   }
 
   async process(job: Job<SlackSyncJobData>): Promise<SlackSyncResult> {
-    const { workspaceId, syncType, oldest, channelIds } = job.data;
+    const { workspaceId, syncType, oldest, channelIds, targetItems } = job.data;
     this.logger.log(`Starting Slack sync for workspace ${workspaceId} (${syncType})`);
 
     const result: SlackSyncResult = { itemsSynced: 0, errors: [] };
@@ -60,21 +61,26 @@ export class SlackSyncProcessor extends WorkerHost {
       // Get team domain from config for building URLs
       const teamDomain = await this.getTeamDomain(workspaceId);
 
-      // Get selected channels from workspace config
-      const selectedChannelIds = await this.integrationsService.getSlackSelectedChannels(workspaceId);
+      // Get channels to sync - either targetItems or all selected channels
+      let channelIdsToSync: string[];
 
-      if (!selectedChannelIds || selectedChannelIds.length === 0) {
-        result.errors.push('No channels selected for sync');
-        return result;
+      if (targetItems && targetItems.length > 0) {
+        // 특정 채널만 동기화
+        channelIdsToSync = targetItems;
+        this.logger.log(`Syncing specific channels: ${channelIdsToSync.join(', ')}`);
+      } else {
+        // 전체 선택된 채널 동기화
+        const selectedChannelIds = await this.integrationsService.getSlackSelectedChannels(workspaceId);
+        if (!selectedChannelIds || selectedChannelIds.length === 0) {
+          result.errors.push('No channels selected for sync');
+          return result;
+        }
+        channelIdsToSync = selectedChannelIds;
       }
 
-      // Get channel details for selected channels
-      // We need to fetch all channels to get details (name, is_member, etc)
-      // Optimization: we could just fetch info for specific channels if Slack API supports it well,
-      // but getChannels is cached/efficient enough involved. 
-      // Actually, SlackOAuthService.getChannels fetches all.
+      // Get channel details for channels to sync
       const allChannels = await this.slackService.getChannels(accessToken);
-      const channels = allChannels.filter((c) => selectedChannelIds.includes(c.id));
+      const channels = allChannels.filter((c) => channelIdsToSync.includes(c.id));
 
       if (channels.length === 0) {
         result.errors.push('Selected channels not found or bot is not a member');

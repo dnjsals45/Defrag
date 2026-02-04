@@ -14,6 +14,7 @@ export interface GitHubSyncJobData {
   userId: string;
   syncType: 'full' | 'incremental';
   since?: string;
+  targetItems?: string[];  // 특정 레포지토리만 동기화
 }
 
 export interface GitHubSyncResult {
@@ -38,7 +39,7 @@ export class GitHubSyncProcessor extends WorkerHost {
   }
 
   async process(job: Job<GitHubSyncJobData>): Promise<GitHubSyncResult> {
-    const { workspaceId, syncType, since } = job.data;
+    const { workspaceId, syncType, since, targetItems } = job.data;
     this.logger.log(`Starting GitHub sync for workspace ${workspaceId} (${syncType})`);
 
     const result: GitHubSyncResult = { itemsSynced: 0, errors: [] };
@@ -55,15 +56,24 @@ export class GitHubSyncProcessor extends WorkerHost {
         return result;
       }
 
-      // Get selected repos from workspace config
-      const selectedRepos = await this.integrationsService.getGitHubSelectedRepos(workspaceId);
+      // Get repos to sync - either targetItems or all selected repos
+      let reposToSync: string[];
 
-      if (!selectedRepos || selectedRepos.length === 0) {
-        result.errors.push('No repositories selected for sync');
-        return result;
+      if (targetItems && targetItems.length > 0) {
+        // 특정 레포지토리만 동기화
+        reposToSync = targetItems;
+        this.logger.log(`Syncing specific repos: ${reposToSync.join(', ')}`);
+      } else {
+        // 전체 선택된 레포지토리 동기화
+        const selectedRepos = await this.integrationsService.getGitHubSelectedRepos(workspaceId);
+        if (!selectedRepos || selectedRepos.length === 0) {
+          result.errors.push('No repositories selected for sync');
+          return result;
+        }
+        reposToSync = selectedRepos;
       }
 
-      const repos = selectedRepos.map((fullName) => ({ full_name: fullName }));
+      const repos = reposToSync.map((fullName) => ({ full_name: fullName }));
       await job.updateProgress({ phase: 'fetching_repos', count: repos.length });
 
       // For each repo, fetch issues and PRs

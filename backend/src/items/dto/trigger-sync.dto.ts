@@ -1,4 +1,4 @@
-import { IsOptional, IsArray, IsEnum, IsString, IsDateString } from 'class-validator';
+import { IsOptional, IsArray, IsEnum, IsString } from 'class-validator';
 import { Provider } from '../../database/entities/user-connection.entity';
 
 export class TriggerSyncDto {
@@ -14,4 +14,9 @@ export class TriggerSyncDto {
   @IsOptional()
   @IsString()
   since?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  targetItems?: string[];  // 특정 항목만 동기화 (repo fullName, channel id, page id)
 }

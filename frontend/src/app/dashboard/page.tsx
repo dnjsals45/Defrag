@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FolderOpen, Search, Link as LinkIcon, Clock, Plus, Trash2 } from 'lucide-react';
+import { FolderOpen, Search, Link as LinkIcon, Clock, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
-import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { itemApi, integrationApi } from '@/lib/api';
 import { getSourceIcon, getSourceLabel, formatRelativeTime } from '@/lib/utils';
@@ -14,9 +14,6 @@ export default function DashboardPage() {
   const [recentItems, setRecentItems] = useState<ContextItem[]>([]);
   const [connectedCount, setConnectedCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [showAddUrl, setShowAddUrl] = useState(false);
-  const [newUrl, setNewUrl] = useState('');
-  const [isAddingUrl, setIsAddingUrl] = useState(false);
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -45,21 +42,6 @@ export default function DashboardPage() {
       console.error('Failed to load items:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleAddUrl = async () => {
-    if (!currentWorkspace || !newUrl.trim()) return;
-    setIsAddingUrl(true);
-    try {
-      await itemApi.create(currentWorkspace.id, { url: newUrl });
-      setNewUrl('');
-      setShowAddUrl(false);
-      loadRecentItems();
-    } catch (error) {
-      console.error('Failed to add URL:', error);
-    } finally {
-      setIsAddingUrl(false);
     }
   };
 
@@ -128,10 +110,6 @@ export default function DashboardPage() {
               {currentWorkspace.type === 'personal' ? '개인' : '팀'} 워크스페이스
             </p>
           </div>
-          <Button onClick={() => setShowAddUrl(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            아티클 추가
-          </Button>
         </div>
 
         {/* Stats */}
@@ -209,37 +187,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Add URL Modal */}
-        {showAddUrl && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-              <h2 className="text-lg font-semibold mb-4">웹 아티클 추가</h2>
-              <Input
-                label="URL"
-                type="url"
-                value={newUrl}
-                onChange={(e) => setNewUrl(e.target.value)}
-                placeholder="https://example.com/article"
-              />
-              <div className="flex gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAddUrl(false)}
-                  className="flex-1"
-                >
-                  취소
-                </Button>
-                <Button
-                  onClick={handleAddUrl}
-                  isLoading={isAddingUrl}
-                  className="flex-1"
-                >
-                  추가
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </AppLayout>
   );

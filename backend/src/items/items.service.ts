@@ -5,6 +5,8 @@ import { Queue } from 'bullmq';
 import { Repository, In } from 'typeorm';
 import { ContextItem, SourceType } from '../database/entities/context-item.entity';
 import { VectorData } from '../database/entities/vector-data.entity';
+import { Workspace } from '../database/entities/workspace.entity';
+import { WorkspaceMember, MemberRole } from '../database/entities/workspace-member.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { SyncService, SyncOptions, WorkspaceSyncStatus } from '../sync/sync.service';
@@ -109,60 +111,91 @@ export class ItemsService {
     workspaceId: string,
     userId: string,
     dto: CreateItemDto,
-  ): Promise<ContextItem> {
-    await this.checkAccess(workspaceId, userId);
+  ): Promise<{ items: ContextItem[]; failed: { url: string; error: string }[] }> {
+    const member = await this.checkAccessWithRole(workspaceId, userId);
 
-    let title = dto.title;
-    let content = dto.content;
-    let metadata: Record<string, any> = { originalUrl: dto.url };
+    const savedItems: ContextItem[] = [];
+    const failed: { url: string; error: string }[] = [];
 
-    // If content is not provided, extract it from the URL
-    if (!content) {
+    for (const url of dto.urls) {
       try {
-        this.logger.log(`Extracting article content from: ${dto.url}`);
-        const article = await this.articleService.extractFromUrl(dto.url);
+        let title = dto.title;
+        let content = dto.content;
+        let metadata: Record<string, any> = { originalUrl: url };
 
-        title = title || article.title;
-        content = this.articleService.cleanTextContent(article.textContent);
-        metadata = {
-          ...metadata,
-          siteName: article.siteName,
-          byline: article.byline,
-          excerpt: article.excerpt,
-          lang: article.lang,
-          contentLength: article.length,
-        };
+        // If content is not provided, extract it from the URL
+        if (!content) {
+          try {
+            this.logger.log(`Extracting article content from: ${url}`);
+            const article = await this.articleService.extractFromUrl(url);
 
-        this.logger.log(`Successfully extracted article: ${title}`);
+            title = title || article.title;
+            content = this.articleService.cleanTextContent(article.textContent);
+            metadata = {
+              ...metadata,
+              siteName: article.siteName,
+              byline: article.byline,
+              excerpt: article.excerpt,
+              lang: article.lang,
+              contentLength: article.length,
+            };
+
+            this.logger.log(`Successfully extracted article: ${title}`);
+          } catch (error: any) {
+            this.logger.warn(`Failed to extract article content: ${error.message}`);
+            // Fall back to placeholder if extraction fails
+            content = `Failed to extract content from ${url}. Error: ${error.message}`;
+          }
+        }
+
+        const item = this.itemsRepository.create({
+          workspaceId,
+          authorId: userId,
+          sourceType: SourceType.WEB_ARTICLE,
+          externalId: `web:${url}`,
+          title: title || url,
+          content,
+          sourceUrl: url,
+          metadata,
+          importanceScore: 0.5,
+        });
+
+        const savedItem = await this.itemsRepository.save(item);
+        savedItems.push(savedItem);
+
+        this.logger.log(`Created web article item: ${savedItem.id}`);
       } catch (error: any) {
-        this.logger.warn(`Failed to extract article content: ${error.message}`);
-        // Fall back to placeholder if extraction fails
-        content = `Failed to extract content from ${dto.url}. Error: ${error.message}`;
+        this.logger.warn(`Failed to create item for ${url}: ${error.message}`);
+        failed.push({ url, error: error.message });
       }
     }
 
-    const item = this.itemsRepository.create({
-      workspaceId,
-      authorId: userId,
-      sourceType: SourceType.WEB_ARTICLE,
-      externalId: `web:${dto.url}`,
-      title: title || dto.url,
-      content,
-      sourceUrl: dto.url,
-      metadata,
-      importanceScore: 0.5,
-    });
+    // Queue embedding generation for all saved items
+    if (savedItems.length > 0) {
+      await this.embeddingQueue.add('generate', {
+        itemIds: savedItems.map((item) => item.id),
+        workspaceId,
+      });
+    }
 
-    const savedItem = await this.itemsRepository.save(item);
+    return { items: savedItems, failed };
+  }
 
-    // Queue embedding generation
-    await this.embeddingQueue.add('generate', {
-      itemIds: [savedItem.id],
-      workspaceId,
-    });
+  private async checkAccessWithRole(workspaceId: string, userId: string): Promise<WorkspaceMember> {
+    const member = await this.workspacesService.checkAccess(workspaceId, userId);
+    if (!member) {
+      throw new ForbiddenException('Access denied');
+    }
 
-    this.logger.log(`Created web article item: ${savedItem.id}`);
-    return savedItem;
+    // Get workspace to check type
+    const workspace = await this.workspacesService.findById(workspaceId, userId);
+
+    // For team workspaces, only ADMIN can add items
+    if (workspace.type === 'team' && member.role !== MemberRole.ADMIN) {
+      throw new ForbiddenException('Only admins can add items to team workspaces');
+    }
+
+    return member;
   }
 
   async delete(

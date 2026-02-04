@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/layout';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
 import { SyncButton, SyncStatus } from '@/components/sync';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { integrationApi } from '@/lib/api';
+import { integrationApi, itemApi } from '@/lib/api';
 import type { Integration } from '@/types';
 
 interface GitHubRepo {
@@ -61,12 +61,15 @@ function ConnectionsPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [showRepoSelector, setShowRepoSelector] = useState(false);
   const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
+  const [previousRepos, setPreviousRepos] = useState<string[]>([]);
   const [isSavingRepos, setIsSavingRepos] = useState(false);
   const [showChannelSelector, setShowChannelSelector] = useState(false);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [previousChannels, setPreviousChannels] = useState<string[]>([]);
   const [isSavingChannels, setIsSavingChannels] = useState(false);
   const [showPageSelector, setShowPageSelector] = useState(false);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
+  const [previousPages, setPreviousPages] = useState<string[]>([]);
   const [isSavingPages, setIsSavingPages] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
@@ -191,11 +194,9 @@ function ConnectionsPageContent() {
 
   const openRepoSelector = () => {
     const githubIntegration = getGitHubIntegration();
-    if (githubIntegration?.config?.selectedRepos) {
-      setSelectedRepos(githubIntegration.config.selectedRepos);
-    } else {
-      setSelectedRepos([]);
-    }
+    const currentRepos = githubIntegration?.config?.selectedRepos || [];
+    setSelectedRepos(currentRepos);
+    setPreviousRepos(currentRepos);
     setShowRepoSelector(true);
   };
 
@@ -216,6 +217,11 @@ function ConnectionsPageContent() {
       });
       await loadIntegrations();
       setShowRepoSelector(false);
+      // 새로 추가된 레포지토리만 동기화
+      const newRepos = selectedRepos.filter((r) => !previousRepos.includes(r));
+      if (newRepos.length > 0) {
+        await itemApi.sync(currentWorkspace.id, { providers: ['github'], targetItems: newRepos });
+      }
     } catch (error) {
       console.error('Failed to save repos:', error);
     } finally {
@@ -225,11 +231,9 @@ function ConnectionsPageContent() {
 
   const openChannelSelector = () => {
     const slackIntegration = getSlackIntegration();
-    if (slackIntegration?.config?.selectedChannels) {
-      setSelectedChannels(slackIntegration.config.selectedChannels);
-    } else {
-      setSelectedChannels([]);
-    }
+    const currentChannels = slackIntegration?.config?.selectedChannels || [];
+    setSelectedChannels(currentChannels);
+    setPreviousChannels(currentChannels);
     setShowChannelSelector(true);
   };
 
@@ -250,6 +254,11 @@ function ConnectionsPageContent() {
       });
       await loadIntegrations();
       setShowChannelSelector(false);
+      // 새로 추가된 채널만 동기화
+      const newChannels = selectedChannels.filter((c) => !previousChannels.includes(c));
+      if (newChannels.length > 0) {
+        await itemApi.sync(currentWorkspace.id, { providers: ['slack'], targetItems: newChannels });
+      }
     } catch (error) {
       console.error('Failed to save channels:', error);
     } finally {
@@ -259,11 +268,9 @@ function ConnectionsPageContent() {
 
   const openPageSelector = () => {
     const notionIntegration = getNotionIntegration();
-    if (notionIntegration?.config?.selectedPages) {
-      setSelectedPages(notionIntegration.config.selectedPages);
-    } else {
-      setSelectedPages([]);
-    }
+    const currentPages = notionIntegration?.config?.selectedPages || [];
+    setSelectedPages(currentPages);
+    setPreviousPages(currentPages);
     setShowPageSelector(true);
   };
 
@@ -284,6 +291,11 @@ function ConnectionsPageContent() {
       });
       await loadIntegrations();
       setShowPageSelector(false);
+      // 새로 추가된 페이지만 동기화
+      const newPages = selectedPages.filter((p) => !previousPages.includes(p));
+      if (newPages.length > 0) {
+        await itemApi.sync(currentWorkspace.id, { providers: ['notion'], targetItems: newPages });
+      }
     } catch (error) {
       console.error('Failed to save pages:', error);
     } finally {

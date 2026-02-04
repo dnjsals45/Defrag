@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Database, Search, Check, X, Trash2, RefreshCw } from 'lucide-react';
+import { Database, Search, Check, X, Trash2, RefreshCw, Plus, Link as LinkIcon } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
-import { Card, CardHeader, CardTitle, CardContent, Button, Input, Badge } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Button, Input, Badge, Modal } from '@/components/ui';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { itemApi } from '@/lib/api';
 import { getSourceIcon, getSourceLabel, formatRelativeTime } from '@/lib/utils';
@@ -37,8 +37,15 @@ export default function ItemsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [urls, setUrls] = useState<string[]>(['']);
+  const [isAdding, setIsAdding] = useState(false);
+  const [addError, setAddError] = useState('');
 
   const limit = 20;
+
+  // 개인 워크스페이스 또는 팀 워크스페이스의 ADMIN만 아티클 추가 가능
+  const canAddItems = currentWorkspace?.type === 'personal' || currentWorkspace?.role === 'ADMIN';
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -100,6 +107,61 @@ export default function ItemsPage() {
     }
   };
 
+  const handleAddUrl = (index: number, value: string) => {
+    const newUrls = [...urls];
+    newUrls[index] = value;
+    setUrls(newUrls);
+  };
+
+  const handleAddMoreUrl = () => {
+    if (urls.length < 5) {
+      setUrls([...urls, '']);
+    }
+  };
+
+  const handleRemoveUrl = (index: number) => {
+    if (urls.length > 1) {
+      setUrls(urls.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSubmitUrls = async () => {
+    if (!currentWorkspace) return;
+
+    const validUrls = urls.filter((url) => url.trim() !== '');
+    if (validUrls.length === 0) {
+      setAddError('최소 1개의 URL을 입력하세요');
+      return;
+    }
+
+    setIsAdding(true);
+    setAddError('');
+
+    try {
+      const { data } = await itemApi.create(currentWorkspace.id, { urls: validUrls });
+
+      if (data.failed && data.failed.length > 0) {
+        setAddError(`${data.failed.length}개 URL 추가 실패: ${data.failed.map((f: any) => f.url).join(', ')}`);
+      }
+
+      if (data.items && data.items.length > 0) {
+        setShowAddModal(false);
+        setUrls(['']);
+        loadItems();
+      }
+    } catch (error: any) {
+      setAddError(error.response?.data?.message || '아티클 추가에 실패했습니다');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowAddModal(false);
+    setUrls(['']);
+    setAddError('');
+  };
+
   const totalPages = Math.ceil(total / limit);
   const embeddedCount = items.filter((item) => item.hasEmbedding).length;
 
@@ -134,10 +196,18 @@ export default function ItemsPage() {
               </p>
             </div>
           </div>
-          <Button onClick={handleSync} disabled={isSyncing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? '동기화 중...' : '전체 동기화'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {canAddItems && (
+              <Button onClick={() => setShowAddModal(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                웹 아티클 추가
+              </Button>
+            )}
+            <Button onClick={handleSync} disabled={isSyncing} variant="outline">
+              <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? '동기화 중...' : '전체 동기화'}
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -279,6 +349,77 @@ export default function ItemsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Add Web Article Modal */}
+        <Modal
+          isOpen={showAddModal}
+          onClose={handleCloseModal}
+          title="웹 아티클 추가"
+        >
+          <div className="space-y-4">
+            {addError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                {addError}
+              </div>
+            )}
+
+            <p className="text-sm text-gray-500">
+              URL을 입력하면 자동으로 콘텐츠를 추출합니다. 최대 5개까지 한 번에 추가할 수 있습니다.
+            </p>
+
+            <div className="space-y-3">
+              {urls.map((url, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Input
+                      type="url"
+                      value={url}
+                      onChange={(e) => handleAddUrl(index, e.target.value)}
+                      placeholder="https://example.com/article"
+                    />
+                  </div>
+                  {urls.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveUrl(index)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {urls.length < 5 && (
+              <button
+                type="button"
+                onClick={handleAddMoreUrl}
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+              >
+                <Plus className="w-4 h-4" />
+                URL 추가 ({urls.length}/5)
+              </button>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={handleCloseModal}
+                className="flex-1"
+              >
+                취소
+              </Button>
+              <Button
+                onClick={handleSubmitUrls}
+                isLoading={isAdding}
+                className="flex-1"
+              >
+                추가
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </AppLayout>
   );

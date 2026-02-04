@@ -14,6 +14,7 @@ export interface NotionSyncJobData {
   userId: string;
   syncType: 'full' | 'incremental';
   pageIds?: string[];
+  targetItems?: string[];  // 특정 페이지만 동기화
 }
 
 export interface NotionSyncResult {
@@ -39,7 +40,7 @@ export class NotionSyncProcessor extends WorkerHost {
   }
 
   async process(job: Job<NotionSyncJobData>): Promise<NotionSyncResult> {
-    const { workspaceId, syncType, pageIds } = job.data;
+    const { workspaceId, syncType, pageIds, targetItems } = job.data;
     this.logger.log(`Starting Notion sync for workspace ${workspaceId} (${syncType})`);
 
     const result: NotionSyncResult = { itemsSynced: 0, errors: [] };
@@ -56,8 +57,15 @@ export class NotionSyncProcessor extends WorkerHost {
         return result;
       }
 
-      // Get selected pages from workspace config
-      const selectedPageIds = pageIds || await this.integrationsService.getNotionSelectedPages(workspaceId);
+      // Get pages to sync - either targetItems, pageIds, or all selected pages
+      let selectedPageIds: string[];
+
+      if (targetItems && targetItems.length > 0) {
+        selectedPageIds = targetItems;
+        this.logger.log(`Syncing specific pages: ${selectedPageIds.join(', ')}`);
+      } else {
+        selectedPageIds = pageIds || await this.integrationsService.getNotionSelectedPages(workspaceId);
+      }
 
       if (!selectedPageIds || selectedPageIds.length === 0) {
         result.errors.push('No pages selected for sync');
