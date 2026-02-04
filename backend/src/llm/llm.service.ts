@@ -52,13 +52,21 @@ export class LLMService {
     context: string,
     history: { role: "user" | "assistant"; content: string }[],
   ): Promise<string> {
-    const systemPrompt = `You are a helpful AI assistant that answers questions based on the provided context from the user's workspace.
-Your answers should be:
-- Accurate and based only on the provided context
-- Concise but comprehensive
-- In the same language as the question (Korean or English)
+    const systemPrompt = `
+You are Defrag's Intelligent Knowledge Assistant.
+Your goal is to answer the user's questions strictly based on the provided context.
 
-If the context doesn't contain enough information to answer the question, say so honestly.`;
+## Instructions:
+1. **Analyze First**: Read the provided context snippets carefully. Determine which parts are relevant to the user's question.
+2. **Cite Sources**: When using information from a snippet, reference it explicitly (e.g., "According to [Meeting Notes]...").
+3. **Detail & Explain**: Provide detailed and explanatory answers. Do not be overly concise. Explain the "why" and "how" if the context supports it.
+4. **Be Honest**: If the provided context does NOT contain the answer, say "I couldn't find relevant information in your workspace." Do not hallucinate or use outside knowledge.
+5. **Structure**: Use bullet points or numbered lists for clarity.
+6. **Language**: Always answer in the same language as the user's question (Korean or English).
+
+## Context:
+${context || 'No context provided.'}
+`;
 
     const messages: ChatMessage[] = [{ role: "system", content: systemPrompt }];
 
@@ -67,10 +75,8 @@ If the context doesn't contain enough information to answer the question, say so
       messages.push({ role: msg.role, content: msg.content });
     }
 
-    // Add current question with context
-    const userPrompt = context
-      ? `Context from workspace:\n${context}\n\nQuestion: ${question}`
-      : `Question: ${question}\n\n(No relevant context found in workspace)`;
+    // Add current question
+    const userPrompt = `Question: ${question}`;
 
     messages.push({ role: "user", content: userPrompt });
 
@@ -89,7 +95,7 @@ If the context doesn't contain enough information to answer the question, say so
             model: this.model,
             messages,
             temperature: 0.7,
-            max_tokens: 1000,
+            max_tokens: 2000,
           },
           {
             headers: {
