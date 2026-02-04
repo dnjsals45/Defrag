@@ -71,20 +71,19 @@ export class SlackOAuthService {
     this.callbackUrl = this.configService.get('SLACK_CALLBACK_URL') || `${backendUrl}/api/connections/slack/callback`;
   }
 
-  getAuthorizationUrl(state: string, isBot = false): string {
+  getAuthorizationUrl(state: string, useUserToken = false): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.callbackUrl,
       state,
     });
 
-    if (isBot) {
-      // Bot scopes for workspace integration
-      // channels:read - public channels, groups:read - private channels
-      params.set('scope', 'channels:history,channels:read,groups:history,groups:read,users:read');
-      params.set('user_scope', 'identify');
+    if (useUserToken) {
+      // User token for workspace integration - uses user's own permissions
+      // User can access any channel they're already a member of
+      params.set('user_scope', 'identify,channels:history,channels:read,groups:history,groups:read');
     } else {
-      // User scopes for personal connection
+      // User scopes for personal connection (simpler)
       params.set('user_scope', 'identify,channels:history,channels:read');
     }
 

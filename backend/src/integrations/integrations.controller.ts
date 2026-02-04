@@ -242,15 +242,18 @@ export class IntegrationsController {
   ) {
     const tokenData = await this.slackOAuth.exchangeCodeForToken(code);
 
-    // Get available channels
-    const channels = await this.fetchAllSlackChannels(tokenData.access_token);
+    // Use user's access token (not bot token) - allows access to channels user is member of
+    const userAccessToken = tokenData.authed_user.access_token;
+
+    // Get available channels using user token
+    const channels = await this.fetchAllSlackChannels(userAccessToken);
 
     await this.integrationsService.upsert(workspaceId, userId, Provider.SLACK, {
-      accessToken: tokenData.access_token,
+      accessToken: userAccessToken,
       config: {
         teamId: tokenData.team.id,
         teamName: tokenData.team.name,
-        botUserId: tokenData.bot_user_id,
+        authedUserId: tokenData.authed_user.id,
         availableChannels: channels,
         selectedChannels: [], // User will select which channels to sync
       },
