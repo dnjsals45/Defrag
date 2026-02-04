@@ -51,8 +51,11 @@ export class WorkspacesService {
       relations: ['workspace'],
     });
 
+    // Filter out members where workspace is null (soft-deleted)
+    const validMembers = members.filter((member) => member.workspace !== null);
+
     return Promise.all(
-      members.map(async (member) => {
+      validMembers.map(async (member) => {
         const memberCount = await this.membersRepository.count({
           where: { workspaceId: member.workspaceId },
         });
