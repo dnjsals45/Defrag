@@ -19,11 +19,10 @@ export class SlackTransformer {
   static transformMessage(
     message: SlackMessage,
     channel: SlackChannel,
-    teamDomain?: string,
+    teamId?: string,
   ): TransformedItem {
     const timestamp = parseFloat(message.ts);
     const date = new Date(timestamp * 1000);
-    const dateStr = date.toISOString().split("T")[0];
 
     // Build content from message text and attachments
     const contentParts = [message.text];
@@ -34,17 +33,24 @@ export class SlackTransformer {
       });
     }
 
-    // Build source URL if team domain is available
+    // Build source URL using Slack app redirect (works with teamId)
     let sourceUrl: string | null = null;
-    if (teamDomain) {
-      const tsForUrl = message.ts.replace(".", "");
-      sourceUrl = `https://${teamDomain}.slack.com/archives/${channel.id}/p${tsForUrl}`;
+    if (teamId) {
+      sourceUrl = `https://app.slack.com/client/${teamId}/${channel.id}`;
     }
+
+    // Create title with message preview (first 50 chars)
+    const preview = message.text
+      .replace(/\n/g, ' ')
+      .replace(/<[^>]+>/g, '') // Remove Slack formatting like <@USER>, <#CHANNEL>
+      .trim()
+      .slice(0, 50);
+    const title = `#${channel.name} - ${preview}${message.text.length > 50 ? '...' : ''}`;
 
     return {
       externalId: `slack:${channel.id}:${message.ts}`,
       sourceType: SourceType.SLACK_MESSAGE,
-      title: `#${channel.name} - ${dateStr}`,
+      title,
       content: contentParts.join("\n\n"),
       sourceUrl,
       metadata: {
@@ -70,11 +76,10 @@ export class SlackTransformer {
     parentMessage: SlackMessage,
     replies: SlackMessage[],
     channel: SlackChannel,
-    teamDomain?: string,
+    teamId?: string,
   ): TransformedItem {
     const timestamp = parseFloat(parentMessage.ts);
     const date = new Date(timestamp * 1000);
-    const dateStr = date.toISOString().split("T")[0];
 
     // Build content from parent and all replies
     const contentParts = [
@@ -84,16 +89,25 @@ export class SlackTransformer {
         .map((r) => `[Reply] ${r.text}`),
     ];
 
+    // Build source URL using Slack app redirect (works with teamId)
     let sourceUrl: string | null = null;
-    if (teamDomain) {
-      const tsForUrl = parentMessage.ts.replace(".", "");
-      sourceUrl = `https://${teamDomain}.slack.com/archives/${channel.id}/p${tsForUrl}`;
+    if (teamId) {
+      sourceUrl = `https://app.slack.com/client/${teamId}/${channel.id}`;
     }
+
+    // Create title with thread preview and reply count
+    const preview = parentMessage.text
+      .replace(/\n/g, ' ')
+      .replace(/<[^>]+>/g, '')
+      .trim()
+      .slice(0, 40);
+    const replyCount = replies.length - 1;
+    const title = `#${channel.name} - ${preview}${parentMessage.text.length > 40 ? '...' : ''} (${replyCount}개 답글)`;
 
     return {
       externalId: `slack:thread:${channel.id}:${parentMessage.ts}`,
       sourceType: SourceType.SLACK_MESSAGE,
-      title: `#${channel.name} Thread - ${dateStr}`,
+      title,
       content: contentParts.join("\n\n"),
       sourceUrl,
       metadata: {

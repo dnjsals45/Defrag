@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from "@nestjs/swagger";
 import { Response } from "express";
 import { ConfigService } from "@nestjs/config";
 import { ConnectionsService } from "./connections.service";
@@ -24,6 +25,7 @@ import {
 } from "../oauth/providers/slack.service";
 import { NotionOAuthService } from "../oauth/providers/notion.service";
 
+@ApiTags("Connections")
 @Controller("connections")
 export class ConnectionsController {
   constructor(
@@ -38,6 +40,9 @@ export class ConnectionsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth("access-token")
+  @ApiOperation({ summary: "개인 연결 목록", description: "사용자의 개인 OAuth 연결 목록 조회" })
+  @ApiResponse({ status: 200, description: "연결 목록 반환" })
   async findAll(@Request() req: any) {
     const connections = await this.connectionsService.findAllByUser(
       req.user.id,
@@ -47,6 +52,10 @@ export class ConnectionsController {
 
   @Get(":provider/auth")
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth("access-token")
+  @ApiOperation({ summary: "개인 OAuth 시작", description: "개인 계정 OAuth 인증 시작" })
+  @ApiParam({ name: "provider", enum: ["github", "slack", "notion"], description: "서비스 제공자" })
+  @ApiResponse({ status: 302, description: "OAuth 페이지로 리다이렉트" })
   async startAuth(
     @Request() req: any,
     @Param("provider") provider: Provider,
@@ -76,6 +85,12 @@ export class ConnectionsController {
   }
 
   @Get(":provider/callback")
+  @ApiOperation({ summary: "개인 OAuth 콜백", description: "개인 계정 OAuth 인증 완료 후 콜백 처리" })
+  @ApiParam({ name: "provider", enum: ["github", "slack", "notion"], description: "서비스 제공자" })
+  @ApiQuery({ name: "code", required: false, description: "인증 코드" })
+  @ApiQuery({ name: "state", required: false, description: "상태 토큰" })
+  @ApiQuery({ name: "error", required: false, description: "에러 메시지" })
+  @ApiResponse({ status: 302, description: "프론트엔드로 리다이렉트" })
   async handleCallback(
     @Param("provider") provider: Provider,
     @Query("code") code: string,
@@ -379,6 +394,10 @@ export class ConnectionsController {
 
   @Delete(":provider")
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth("access-token")
+  @ApiOperation({ summary: "개인 연결 해제", description: "개인 계정 OAuth 연결 해제" })
+  @ApiParam({ name: "provider", enum: ["github", "slack", "notion"], description: "서비스 제공자" })
+  @ApiResponse({ status: 200, description: "연결 해제 성공" })
   async disconnect(@Request() req: any, @Param("provider") provider: Provider) {
     await this.connectionsService.delete(req.user.id, provider);
     return { success: true };

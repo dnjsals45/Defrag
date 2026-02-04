@@ -8,6 +8,7 @@ import {
   Database,
   Settings,
   Users,
+  User,
   Link as LinkIcon,
   LogOut,
   Plus,
@@ -19,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { Modal } from '@/components/ui/modal';
-import { Button, Input, Select } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 
 const navItems = [
   { href: '/dashboard', label: '대시보드', icon: FolderOpen },
@@ -237,27 +238,62 @@ export function Sidebar() {
         title="새 워크스페이스"
       >
         <div className="space-y-4">
-          <Input
-            label="워크스페이스 이름"
-            value={newWorkspaceName}
-            onChange={(e) => {
-              setNewWorkspaceName(e.target.value);
-              if (nameError) setNameError('');
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="내 프로젝트"
-            error={nameError}
-            autoFocus
-          />
-          <Select
-            label="유형"
-            value={newWorkspaceType}
-            onChange={(e) => setNewWorkspaceType(e.target.value as 'personal' | 'team')}
-            options={[
-              { value: 'personal', label: '개인' },
-              { value: 'team', label: '팀' },
-            ]}
-          />
+          {nameError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              {nameError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              워크스페이스 이름
+            </label>
+            <Input
+              value={newWorkspaceName}
+              onChange={(e) => {
+                setNewWorkspaceName(e.target.value);
+                if (nameError) setNameError('');
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="예: 내 프로젝트"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              워크스페이스 유형
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setNewWorkspaceType('personal')}
+                className={`p-4 border rounded-lg text-left transition-all ${
+                  newWorkspaceType === 'personal'
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <User className={`w-5 h-5 mb-2 ${newWorkspaceType === 'personal' ? 'text-blue-600' : 'text-gray-400'}`} />
+                <p className="font-medium text-gray-900">개인</p>
+                <p className="text-xs text-gray-500 mt-1">나만 사용</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewWorkspaceType('team')}
+                className={`p-4 border rounded-lg text-left transition-all ${
+                  newWorkspaceType === 'team'
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <Users className={`w-5 h-5 mb-2 ${newWorkspaceType === 'team' ? 'text-blue-600' : 'text-gray-400'}`} />
+                <p className="font-medium text-gray-900">팀</p>
+                <p className="text-xs text-gray-500 mt-1">팀원과 함께</p>
+              </button>
+            </div>
+          </div>
+
           <div className="flex gap-2 pt-2">
             <Button
               variant="outline"
@@ -271,7 +307,7 @@ export function Sidebar() {
               isLoading={isCreating}
               className="flex-1"
             >
-              생성
+              만들기
             </Button>
           </div>
         </div>
