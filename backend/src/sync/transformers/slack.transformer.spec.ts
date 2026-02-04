@@ -51,15 +51,14 @@ describe("SlackTransformer", () => {
       expect(result.metadata.hasFiles).toBe(true);
     });
 
-    it("should generate source URL when teamDomain is provided", () => {
+    it("should generate source URL when teamId is provided", () => {
       const result = SlackTransformer.transformMessage(
         mockMessage,
         mockChannel,
-        "myteam",
+        "T12345",
       );
 
-      expect(result.sourceUrl).toContain("myteam.slack.com");
-      expect(result.sourceUrl).toContain("/archives/C12345/");
+      expect(result.sourceUrl).toBe("https://app.slack.com/client/T12345/C12345");
     });
 
     it("should return null sourceUrl when teamDomain is not provided", () => {
@@ -142,7 +141,9 @@ describe("SlackTransformer", () => {
 
       expect(result.externalId).toBe("slack:thread:C12345:1704067200.000001");
       expect(result.sourceType).toBe(SourceType.SLACK_MESSAGE);
-      expect(result.title).toContain("#general Thread");
+      expect(result.title).toContain("#general");
+      expect(result.title).toContain("Thread parent message");
+      expect(result.title).toContain("2개 답글");
       expect(result.content).toContain("[Thread Start]");
       expect(result.content).toContain("[Reply]");
     });
