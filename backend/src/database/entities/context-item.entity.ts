@@ -18,6 +18,7 @@ export enum SourceType {
   GITHUB_PR = 'github_pr',
   GITHUB_ISSUE = 'github_issue',
   GITHUB_COMMIT = 'github_commit',
+  GITHUB_DOC = 'github_doc',
   SLACK_MESSAGE = 'slack_message',
   NOTION_PAGE = 'notion_page',
   WEB_ARTICLE = 'web_article',

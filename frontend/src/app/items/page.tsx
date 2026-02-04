@@ -23,6 +23,7 @@ const SOURCE_FILTERS = [
   { value: 'github_pr', label: 'GitHub PR' },
   { value: 'github_issue', label: 'GitHub Issue' },
   { value: 'github_commit', label: 'GitHub Commit' },
+  { value: 'github_doc', label: 'GitHub 문서' },
   { value: 'slack_message', label: 'Slack' },
   { value: 'notion_page', label: 'Notion' },
   { value: 'web_article', label: '웹 아티클' },

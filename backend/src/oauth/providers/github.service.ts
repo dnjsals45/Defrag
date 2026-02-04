@@ -79,6 +79,29 @@ export interface GitHubCommit {
   author: { login: string; id: number } | null;
 }
 
+export interface GitHubContent {
+  name: string;
+  path: string;
+  sha: string;
+  size: number;
+  url: string;
+  html_url: string;
+  git_url: string;
+  download_url: string | null;
+  type: 'file' | 'dir';
+  content?: string;  // base64 encoded
+  encoding?: string;
+}
+
+export interface GitHubFileContent {
+  path: string;
+  name: string;
+  content: string;
+  sha: string;
+  html_url: string;
+  size: number;
+}
+
 @Injectable()
 export class GitHubOAuthService {
   private readonly clientId: string;
@@ -297,5 +320,96 @@ export class GitHubOAuthService {
         link: response.headers['link'],
       },
     };
+  }
+
+  async getContents(
+    accessToken: string,
+    repo: string,
+    path: string = '',
+  ): Promise<{
+    data: GitHubContent | GitHubContent[];
+    headers: { 'x-ratelimit-remaining'?: string };
+  }> {
+    const response = await firstValueFrom(
+      this.httpService.get<GitHubContent | GitHubContent[]>(
+        `https://api.github.com/repos/${repo}/contents/${path}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        },
+      ),
+    );
+
+    return {
+      data: response.data,
+      headers: {
+        'x-ratelimit-remaining': response.headers['x-ratelimit-remaining'],
+      },
+    };
+  }
+
+  async getFileContent(
+    accessToken: string,
+    repo: string,
+    path: string,
+  ): Promise<GitHubFileContent | null> {
+    try {
+      const { data } = await this.getContents(accessToken, repo, path);
+
+      if (Array.isArray(data)) {
+        return null; // It's a directory, not a file
+      }
+
+      if (data.type !== 'file' || !data.content) {
+        return null;
+      }
+
+      // Decode base64 content
+      const content = Buffer.from(data.content, 'base64').toString('utf-8');
+
+      return {
+        path: data.path,
+        name: data.name,
+        content,
+        sha: data.sha,
+        html_url: data.html_url,
+        size: data.size,
+      };
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async getMarkdownFiles(
+    accessToken: string,
+    repo: string,
+    path: string = '',
+  ): Promise<GitHubContent[]> {
+    try {
+      const { data } = await this.getContents(accessToken, repo, path);
+
+      if (!Array.isArray(data)) {
+        // Single file
+        if (data.name.toLowerCase().endsWith('.md')) {
+          return [data];
+        }
+        return [];
+      }
+
+      // Filter markdown files
+      return data.filter(
+        (item) => item.type === 'file' && item.name.toLowerCase().endsWith('.md'),
+      );
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return [];
+      }
+      throw error;
+    }
   }
 }

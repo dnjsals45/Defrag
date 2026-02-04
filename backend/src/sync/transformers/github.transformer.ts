@@ -3,6 +3,7 @@ import {
   GitHubIssue,
   GitHubPullRequest,
   GitHubCommit,
+  GitHubFileContent,
 } from '../../oauth/providers/github.service';
 
 export interface TransformedItem {
@@ -108,6 +109,57 @@ export class GitHubTransformer {
       importanceScore: GitHubTransformer.calculateCommitImportance(commit),
       createdAt: new Date(commit.commit.author.date),
     };
+  }
+
+  static transformDocument(
+    file: GitHubFileContent,
+    repoFullName: string,
+  ): TransformedItem {
+    // Extract title from first H1 heading or use filename
+    const h1Match = file.content.match(/^#\s+(.+)$/m);
+    const title = h1Match ? h1Match[1] : file.name.replace(/\.md$/i, '');
+
+    return {
+      externalId: `github:doc:${repoFullName}:${file.path}`,
+      sourceType: SourceType.GITHUB_DOC,
+      title: `[${repoFullName}] ${title}`,
+      content: file.content,
+      sourceUrl: file.html_url,
+      metadata: {
+        repo: repoFullName,
+        path: file.path,
+        filename: file.name,
+        sha: file.sha,
+        size: file.size,
+      },
+      importanceScore: GitHubTransformer.calculateDocImportance(file),
+      // For docs, we don't have a creation date from the API, so we skip it
+      // TypeORM will use current time
+    };
+  }
+
+  private static calculateDocImportance(file: GitHubFileContent): number {
+    let score = 0.6;
+    const name = file.name.toLowerCase();
+    const path = file.path.toLowerCase();
+
+    // README files are very important
+    if (name === 'readme.md') score += 0.3;
+
+    // Documentation in docs folder is important
+    if (path.startsWith('docs/')) score += 0.1;
+
+    // API documentation
+    if (name.includes('api') || path.includes('api')) score += 0.1;
+
+    // Contributing, changelog, etc.
+    if (name === 'contributing.md' || name === 'changelog.md') score += 0.15;
+
+    // Longer documents have more content
+    if (file.size > 10000) score += 0.1;
+    else if (file.size > 5000) score += 0.05;
+
+    return Math.min(score, 1.0);
   }
 
   private static calculateIssueImportance(issue: GitHubIssue): number {

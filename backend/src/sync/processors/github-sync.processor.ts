@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { GitHubOAuthService } from '../../oauth/providers/github.service';
+import { GitHubOAuthService, GitHubFileContent } from '../../oauth/providers/github.service';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { ContextItem, SourceType } from '../../database/entities/context-item.entity';
 import { Provider } from '../../database/entities/user-connection.entity';
@@ -82,6 +82,7 @@ export class GitHubSyncProcessor extends WorkerHost {
           await this.syncRepoIssues(accessToken, repo.full_name, workspaceId, since, job);
           await this.syncRepoPRs(accessToken, repo.full_name, workspaceId, since, job);
           await this.syncRepoCommits(accessToken, repo.full_name, workspaceId, since, job);
+          await this.syncRepoDocs(accessToken, repo.full_name, workspaceId, job);
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
           this.logger.error(`Error syncing repo ${repo.full_name}: ${errorMsg}`);
@@ -262,6 +263,57 @@ export class GitHubSyncProcessor extends WorkerHost {
 
       if (commits.length < perPage) break;
       page++;
+    }
+  }
+
+  private async syncRepoDocs(
+    accessToken: string,
+    repoFullName: string,
+    workspaceId: string,
+    job?: Job,
+  ): Promise<void> {
+    const docsToSync: GitHubFileContent[] = [];
+
+    // 1. Fetch README.md from root
+    const readme = await this.githubService.getFileContent(accessToken, repoFullName, 'README.md');
+    if (readme) {
+      docsToSync.push(readme);
+    }
+
+    // Also try readme.md (lowercase)
+    if (!readme) {
+      const readmeLower = await this.githubService.getFileContent(accessToken, repoFullName, 'readme.md');
+      if (readmeLower) {
+        docsToSync.push(readmeLower);
+      }
+    }
+
+    // 2. Fetch markdown files from docs/ folder
+    try {
+      const docsFiles = await this.githubService.getMarkdownFiles(accessToken, repoFullName, 'docs');
+      for (const file of docsFiles) {
+        const fileContent = await this.githubService.getFileContent(accessToken, repoFullName, file.path);
+        if (fileContent) {
+          docsToSync.push(fileContent);
+        }
+        await this.delay(100); // Small delay to avoid rate limiting
+      }
+    } catch {
+      // docs/ folder might not exist, that's okay
+    }
+
+    // 3. Transform and save documents
+    for (const doc of docsToSync) {
+      const transformed = GitHubTransformer.transformDocument(doc, repoFullName);
+      await this.upsertItem(workspaceId, transformed);
+    }
+
+    if (job && docsToSync.length > 0) {
+      await job.updateProgress({
+        phase: 'syncing_docs',
+        repo: repoFullName,
+        count: docsToSync.length,
+      });
     }
   }
 
