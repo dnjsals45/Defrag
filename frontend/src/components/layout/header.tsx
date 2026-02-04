@@ -1,12 +1,13 @@
 'use client';
 
-import { Bell, Check, X, Shield, User, Database, RefreshCw, Info, CheckCheck } from 'lucide-react';
+import { Bell, Check, X, Shield, User, Database, RefreshCw, Info, CheckCheck, Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { useNotificationStore } from '@/stores/notification';
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { formatRelativeTime } from '@/lib/utils';
+import { useUIStore } from '@/stores/ui';
+import { cn, formatRelativeTime } from '@/lib/utils';
 import type { NotificationType } from '@/types';
 
 const notificationIcons: Record<NotificationType, typeof Database> = {
@@ -17,6 +18,7 @@ const notificationIcons: Record<NotificationType, typeof Database> = {
 
 export function Header() {
   const router = useRouter();
+  const { toggleMobileSidebar } = useUIStore();
   const {
     notifications,
     invitations,
@@ -114,36 +116,48 @@ export function Header() {
   };
 
   return (
-    <header className="h-16 bg-gray-200 border-b border-gray-300 flex items-center justify-center px-6 relative">
-      <div className="flex items-center gap-6">
+    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-20 flex items-center justify-between px-4 md:px-6">
+      <div className="flex items-center gap-4">
+        {/* Hamburger Menu (Mobile Only) */}
+        <button
+          onClick={toggleMobileSidebar}
+          className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg md:hidden"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
         {/* 인사 + 날짜 */}
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col">
           <div className="flex items-center gap-2">
-            <span className="text-base">👋</span>
+            <span className="text-base hidden sm:inline">👋</span>
             <p className="text-sm font-medium text-gray-800">
-              안녕하세요, {user?.nickname || '사용자'}님!
+              <span className="hidden sm:inline">안녕하세요, </span>
+              <span className="font-semibold">{user?.nickname || '사용자'}</span>님
             </p>
           </div>
-          <p className="text-xs text-gray-500">{formatDate()}</p>
+          <p className="text-xs text-gray-500 hidden sm:block">{formatDate()}</p>
         </div>
 
-        {/* 구분선 */}
-        <div className="h-8 w-px bg-gray-300" />
+        {/* 구분선 (Desktop only) */}
+        <div className="hidden md:block h-8 w-px bg-gray-200" />
 
-        {/* 시간 */}
-        <span className="text-xl font-semibold text-gray-700 tabular-nums">{currentTime}</span>
+        {/* 시간 (Desktop only) */}
+        <span className="hidden md:block text-xl font-semibold text-gray-700 tabular-nums">{currentTime}</span>
       </div>
 
-      {/* Notification Bell & Dropdown */}
-      <div className="absolute right-6" ref={dropdownRef}>
+      {/* Notification & Actions */}
+      <div className="flex items-center gap-2 relative" ref={dropdownRef}>
         <button
           onClick={handleToggle}
-          className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-300 rounded-lg transition-colors"
+          className={cn(
+            "relative p-2 rounded-lg transition-all duration-200",
+            isOpen ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+          )}
           aria-label="알림"
         >
           <Bell className="w-5 h-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-xs font-medium text-white bg-red-500 rounded-full">
+            <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-xs font-medium text-white bg-red-500 rounded-full ring-2 ring-white">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
@@ -151,7 +165,7 @@ export function Header() {
 
         {/* Dropdown Panel */}
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-50">
+          <div className="absolute right-0 top-full mt-2 w-80 md:w-96 bg-white rounded-xl border border-gray-200/60 shadow-[0_4px_20px_rgba(0,0,0,0.08)] overflow-hidden z-50 animate-scale-in origin-top-right">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
               <h3 className="font-semibold text-gray-900">알림</h3>
@@ -220,9 +234,8 @@ export function Header() {
                     return (
                       <div
                         key={`notif-${notification.id}`}
-                        className={`px-4 py-3 hover:bg-gray-50 cursor-pointer ${
-                          notification.isRead ? 'opacity-60' : ''
-                        }`}
+                        className={`px-4 py-3 hover:bg-gray-50 cursor-pointer ${notification.isRead ? 'opacity-60' : ''
+                          }`}
                         onClick={() => !notification.isRead && handleMarkAsRead(notification.id)}
                       >
                         <div className="flex items-start gap-3">
